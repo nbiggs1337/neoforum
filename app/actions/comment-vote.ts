@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase"
 import { requireAuth } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
 
-export async function voteOnComment(commentId: string, voteType: "upvote" | "downvote") {
+export async function voteOnComment(commentId: string, voteType: "upvote" | "downvote" | null) {
   console.log("=== COMMENT VOTE ACTION CALLED ===")
   console.log("Comment ID:", commentId)
   console.log("Vote Type:", voteType)
@@ -15,8 +15,8 @@ export async function voteOnComment(commentId: string, voteType: "upvote" | "dow
 
     const supabase = await createServerSupabaseClient()
 
-    // Convert string vote type to integer
-    const normalizedVoteType = voteType === "upvote" ? 1 : -1
+    // Convert string vote type to integer or null
+    const normalizedVoteType = voteType === "upvote" ? 1 : voteType === "downvote" ? -1 : null
     console.log("Normalized vote type:", normalizedVoteType)
 
     // Check if user has already voted on this comment
@@ -37,8 +37,8 @@ export async function voteOnComment(commentId: string, voteType: "upvote" | "dow
 
     if (existingVote) {
       console.log("Found existing vote:", existingVote.vote_type)
-      if (existingVote.vote_type === normalizedVoteType) {
-        // Remove vote if clicking the same vote type
+      if (normalizedVoteType === null || existingVote.vote_type === normalizedVoteType) {
+        // Remove vote if clicking the same vote type or if voteType is null
         console.log("Removing existing vote...")
         const { error: deleteError } = await supabase
           .from("comment_votes")
@@ -66,8 +66,8 @@ export async function voteOnComment(commentId: string, voteType: "upvote" | "dow
           return { success: false, error: "Failed to update vote" }
         }
       }
-    } else {
-      // Create new vote
+    } else if (normalizedVoteType !== null) {
+      // Create new vote only if voteType is not null
       console.log("Creating new vote...")
       const voteData = {
         comment_id: commentId,
@@ -85,24 +85,40 @@ export async function voteOnComment(commentId: string, voteType: "upvote" | "dow
       }
     }
 
+    // Wait a moment for database consistency
+    await new Promise((resolve) => setTimeout(resolve, 100))
+
     // Count votes directly from the database
     console.log("Counting votes...")
-    const { count: upvoteCount, error: upvoteError } = await supabase
+    const { data: allVotes, error: votesError } = await supabase
       .from("comment_votes")
-      .select("*", { count: "exact", head: true })
+      .select("vote_type")
       .eq("comment_id", commentId)
-      .eq("vote_type", 1)
 
-    const { count: downvoteCount, error: downvoteError } = await supabase
-      .from("comment_votes")
-      .select("*", { count: "exact", head: true })
-      .eq("comment_id", commentId)
-      .eq("vote_type", -1)
+    console.log("All votes for comment:", allVotes, votesError)
 
-    console.log("Vote counts:", { upvoteCount, downvoteCount, upvoteError, downvoteError })
+    if (votesError) {
+      console.error("Error fetching votes:", votesError)
+      return { success: false, error: "Failed to count votes" }
+    }
 
-    const upvotes = upvoteCount || 0
-    const downvotes = downvoteCount || 0
+    const upvotes = allVotes?.filter((vote) => vote.vote_type === 1).length || 0
+    const downvotes = allVotes?.filter((vote) => vote.vote_type === -1).length || 0
+
+    console.log("Final vote counts:", { upvotes, downvotes })
+
+    // Update comment vote counts in the comments table
+    const { error: updateCommentError } = await supabase
+      .from("comments")
+      .update({
+        upvotes: upvotes,
+        downvotes: downvotes,
+      })
+      .eq("id", commentId)
+
+    if (updateCommentError) {
+      console.error("Error updating comment vote counts:", updateCommentError)
+    }
 
     console.log("=== COMMENT VOTE ACTION COMPLETE ===")
     revalidatePath("/")
