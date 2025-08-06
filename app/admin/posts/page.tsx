@@ -175,7 +175,6 @@ export default function AdminPostsPage() {
         <div className="space-y-4">
           {filteredPosts.map((post) => {
             const hasImages = Array.isArray(post.image_urls) && post.image_urls.length > 0
-            const displayImages = hasImages ? post.image_urls.slice(
             const displayImages = hasImages ? post.image_urls.slice(0, 3) : []
             const remainingImages = hasImages ? Math.max(0, post.image_urls.length - 3) : 0
 
