@@ -36,7 +36,7 @@ export async function signUpAction(prevState: any, formData: FormData) {
           username,
           display_name: username,
         },
-        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+        emailRedirectTo: `https://neoforum.app/auth/callback`
       }
     })
 

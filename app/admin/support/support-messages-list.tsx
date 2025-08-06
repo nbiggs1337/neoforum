@@ -1,230 +1,215 @@
 'use client'
 
-import { useState } from 'react'
-import { updateSupportMessage, type SupportMessage } from '@/app/actions/support'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Textarea } from '@/components/ui/textarea'
-import { Label } from '@/components/ui/label'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatDistanceToNow } from 'date-fns'
+import { useState, useEffect } from "react"
+import { getSupportMessages, updateSupportMessage } from "@/app/actions/support"
+import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
-interface SupportMessagesListProps {
-  messages: (SupportMessage & {
-    user_profile?: { username: string; display_name: string } | null
-    assigned_admin?: { username: string; display_name: string } | null
-  })[]
+interface SupportMessage {
+  id: number
+  name: string
+  email: string
+  category: string
+  subject: string
+  message: string
+  status: 'open' | 'in_progress' | 'closed'
+  priority: 'low' | 'medium' | 'high'
+  admin_notes?: string
+  created_at: string
+  updated_at: string
 }
 
-export function SupportMessagesList({ messages }: SupportMessagesListProps) {
-  const [selectedMessage, setSelectedMessage] = useState<string | null>(null)
-  const [adminNotes, setAdminNotes] = useState('')
-  const [isUpdating, setIsUpdating] = useState(false)
-  const [filter, setFilter] = useState<'all' | 'open' | 'in_progress' | 'resolved' | 'closed'>('all')
+interface SupportMessagesListProps {
+  filter: string
+}
 
-  const filteredMessages = messages.filter(message => 
-    filter === 'all' || message.status === filter
-  )
+export function SupportMessagesList({ filter }: SupportMessagesListProps) {
+  const [messages, setMessages] = useState<SupportMessage[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState('all')
+
+  useEffect(() => {
+    loadMessages()
+  }, [])
+
+  const loadMessages = async () => {
+    try {
+      setLoading(true)
+      const result = await getSupportMessages()
+      if (result.success && result.data) {
+        setMessages(result.data)
+      } else {
+        setError(result.error || 'Failed to load messages')
+      }
+    } catch (err) {
+      setError('Failed to load messages')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleStatusUpdate = async (id: number, status: string) => {
+    try {
+      const result = await updateSupportMessage(id, { status })
+      if (result.success) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === id ? { ...msg, status: status as any } : msg
+        ))
+      }
+    } catch (err) {
+      console.error('Failed to update status:', err)
+    }
+  }
+
+  const handleNotesUpdate = async (id: number, notes: string) => {
+    try {
+      const result = await updateSupportMessage(id, { admin_notes: notes })
+      if (result.success) {
+        setMessages(prev => prev.map(msg => 
+          msg.id === id ? { ...msg, admin_notes: notes } : msg
+        ))
+      }
+    } catch (err) {
+      console.error('Failed to update notes:', err)
+    }
+  }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-blue-500'
-      case 'in_progress': return 'bg-yellow-500'
-      case 'resolved': return 'bg-green-500'
-      case 'closed': return 'bg-gray-500'
-      default: return 'bg-gray-500'
+      case 'open': return 'bg-blue-500/20 text-blue-400 border-blue-500/30'
+      case 'in_progress': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      case 'closed': return 'bg-green-500/20 text-green-400 border-green-500/30'
+      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
   }
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
-      case 'urgent': return 'bg-red-500'
-      case 'high': return 'bg-orange-500'
-      case 'normal': return 'bg-blue-500'
-      case 'low': return 'bg-gray-500'
-      default: return 'bg-gray-500'
+      case 'high': return 'bg-red-500/20 text-red-400 border-red-500/30'
+      case 'medium': return 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30'
+      case 'low': return 'bg-green-500/20 text-green-400 border-green-500/30'
+      default: return 'bg-gray-500/20 text-gray-400 border-gray-500/30'
     }
   }
 
-  const handleStatusUpdate = async (messageId: string, status: string) => {
-    setIsUpdating(true)
-    try {
-      const result = await updateSupportMessage(messageId, { status: status as any })
-      if (result.success) {
-        window.location.reload()
-      } else {
-        alert(result.error)
-      }
-    } catch (error) {
-      alert('Failed to update status')
-    } finally {
-      setIsUpdating(false)
+  const filterMessages = (messages: SupportMessage[], filter: string) => {
+    switch (filter) {
+      case 'open': return messages.filter(m => m.status === 'open')
+      case 'in_progress': return messages.filter(m => m.status === 'in_progress')
+      case 'closed': return messages.filter(m => m.status === 'closed')
+      case 'high': return messages.filter(m => m.priority === 'high')
+      default: return messages
     }
   }
 
-  const handleNotesUpdate = async (messageId: string) => {
-    setIsUpdating(true)
-    try {
-      const result = await updateSupportMessage(messageId, { admin_notes: adminNotes })
-      if (result.success) {
-        setAdminNotes('')
-        setSelectedMessage(null)
-        window.location.reload()
-      } else {
-        alert(result.error)
-      }
-    } catch (error) {
-      alert('Failed to update notes')
-    } finally {
-      setIsUpdating(false)
-    }
+  if (loading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto"></div>
+        <p className="text-gray-300 mt-4">Loading support messages...</p>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="p-8 text-center">
+        <p className="text-red-400">{error}</p>
+        <Button onClick={loadMessages} className="mt-4 bg-purple-600 hover:bg-purple-700">
+          Retry
+        </Button>
+      </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      {/* Filter Tabs */}
-      <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
-        <TabsList className="grid w-full grid-cols-5 bg-gray-800 border-gray-700">
-          <TabsTrigger value="all" className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300">All ({messages.length})</TabsTrigger>
-          <TabsTrigger value="open" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300">Open ({messages.filter(m => m.status === 'open').length})</TabsTrigger>
-          <TabsTrigger value="in_progress" className="data-[state=active]:bg-yellow-500/20 data-[state=active]:text-yellow-300">In Progress ({messages.filter(m => m.status === 'in_progress').length})</TabsTrigger>
-          <TabsTrigger value="resolved" className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300">Resolved ({messages.filter(m => m.status === 'resolved').length})</TabsTrigger>
-          <TabsTrigger value="closed" className="data-[state=active]:bg-gray-500/20 data-[state=active]:text-gray-300">Closed ({messages.filter(m => m.status === 'closed').length})</TabsTrigger>
+    <div className="p-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-5 bg-gray-700/50">
+          <TabsTrigger value="all" className="data-[state=active]:bg-purple-600">All</TabsTrigger>
+          <TabsTrigger value="open" className="data-[state=active]:bg-blue-600">Open</TabsTrigger>
+          <TabsTrigger value="in_progress" className="data-[state=active]:bg-yellow-600">In Progress</TabsTrigger>
+          <TabsTrigger value="closed" className="data-[state=active]:bg-green-600">Closed</TabsTrigger>
+          <TabsTrigger value="high" className="data-[state=active]:bg-red-600">High Priority</TabsTrigger>
         </TabsList>
 
-        <TabsContent value={filter} className="mt-6">
-          {filteredMessages.length === 0 ? (
-            <Card className="bg-gray-800 border-gray-700">
-              <CardContent className="p-8 text-center">
-                <p className="text-gray-400">No support messages found for this filter.</p>
-              </CardContent>
-            </Card>
-          ) : (
+        {['all', 'open', 'in_progress', 'closed', 'high'].map(tabValue => (
+          <TabsContent key={tabValue} value={tabValue} className="mt-6">
             <div className="space-y-4">
-              {filteredMessages.map((message) => (
-                <Card key={message.id} className="bg-gray-800 border-gray-700">
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <div className="space-y-2">
-                        <CardTitle className="text-white">{message.subject}</CardTitle>
-                        <div className="flex items-center gap-2 text-sm text-gray-400">
-                          <span>From: {message.name} ({message.email})</span>
-                          {message.user_profile && (
-                            <span>• User: @{message.user_profile.username}</span>
-                          )}
-                          <span>• {formatDistanceToNow(new Date(message.created_at))} ago</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge className={`${getStatusColor(message.status)} text-white`}>
-                            {message.status.replace('_', ' ')}
-                          </Badge>
-                          <Badge className={`${getPriorityColor(message.priority)} text-white`}>
-                            {message.priority}
-                          </Badge>
-                          <Badge variant="outline" className="text-gray-300 border-gray-600">
-                            {message.category}
-                          </Badge>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Select
-                          value={message.status}
-                          onValueChange={(value) => handleStatusUpdate(message.id, value)}
-                          disabled={isUpdating}
-                        >
-                          <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-gray-800 border-gray-700">
-                            <SelectItem value="open">Open</SelectItem>
-                            <SelectItem value="in_progress">In Progress</SelectItem>
-                            <SelectItem value="resolved">Resolved</SelectItem>
-                            <SelectItem value="closed">Closed</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            setSelectedMessage(selectedMessage === message.id ? null : message.id)
-                            setAdminNotes(message.admin_notes || '')
-                          }}
-                          className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                        >
-                          {selectedMessage === message.id ? 'Hide' : 'Manage'}
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
+              {filterMessages(messages, tabValue).map((message) => (
+                <div key={message.id} className="bg-gray-700/50 border border-gray-600/50 rounded-lg p-6">
+                  <div className="flex justify-between items-start mb-4">
                     <div>
-                      <Label className="text-gray-300">Message:</Label>
-                      <div className="mt-1 p-3 bg-gray-900 rounded-md border border-gray-700">
-                        <p className="text-gray-300 whitespace-pre-wrap">{message.message}</p>
-                      </div>
+                      <h3 className="text-lg font-semibold text-white mb-1">{message.subject}</h3>
+                      <p className="text-sm text-gray-300">
+                        From: {message.name} ({message.email}) • Category: {message.category}
+                      </p>
+                      <p className="text-xs text-gray-400">
+                        Created: {new Date(message.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      <Badge className={getPriorityColor(message.priority)}>
+                        {message.priority}
+                      </Badge>
+                      <Badge className={getStatusColor(message.status)}>
+                        {message.status.replace('_', ' ')}
+                      </Badge>
+                    </div>
+                  </div>
+
+                  <div className="mb-4">
+                    <p className="text-gray-300 whitespace-pre-wrap">{message.message}</p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Status
+                      </label>
+                      <Select
+                        value={message.status}
+                        onValueChange={(value) => handleStatusUpdate(message.id, value)}
+                      >
+                        <SelectTrigger className="bg-gray-800 border-gray-600 text-white">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="bg-gray-800 border-gray-600">
+                          <SelectItem value="open">Open</SelectItem>
+                          <SelectItem value="in_progress">In Progress</SelectItem>
+                          <SelectItem value="closed">Closed</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </div>
 
-                    {message.admin_notes && (
-                      <div>
-                        <Label className="text-gray-300">Admin Notes:</Label>
-                        <div className="mt-1 p-3 bg-blue-900/20 rounded-md border border-blue-700">
-                          <p className="text-blue-300 whitespace-pre-wrap">{message.admin_notes}</p>
-                        </div>
-                      </div>
-                    )}
-
-                    {selectedMessage === message.id && (
-                      <div className="space-y-3 pt-4 border-t border-gray-700">
-                        <div>
-                          <Label htmlFor="admin-notes" className="text-gray-300">
-                            Admin Notes
-                          </Label>
-                          <Textarea
-                            id="admin-notes"
-                            value={adminNotes}
-                            onChange={(e) => setAdminNotes(e.target.value)}
-                            placeholder="Add internal notes about this support request..."
-                            className="mt-1 bg-gray-900 border-gray-700 text-white placeholder-gray-500"
-                            rows={3}
-                          />
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            onClick={() => handleNotesUpdate(message.id)}
-                            disabled={isUpdating}
-                            size="sm"
-                            className="bg-purple-600 hover:bg-purple-700"
-                          >
-                            {isUpdating ? 'Saving...' : 'Save Notes'}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedMessage(null)
-                              setAdminNotes('')
-                            }}
-                            size="sm"
-                            className="border-gray-600 text-gray-300 hover:bg-gray-700"
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </div>
-                    )}
-
-                    {message.resolved_at && (
-                      <div className="text-sm text-green-400">
-                        Resolved: {formatDistanceToNow(new Date(message.resolved_at))} ago
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-300 mb-2">
+                        Admin Notes
+                      </label>
+                      <Textarea
+                        value={message.admin_notes || ''}
+                        onChange={(e) => handleNotesUpdate(message.id, e.target.value)}
+                        placeholder="Add internal notes..."
+                        className="bg-gray-800 border-gray-600 text-white placeholder-gray-400"
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                </div>
               ))}
+
+              {filterMessages(messages, tabValue).length === 0 && (
+                <div className="text-center py-8">
+                  <p className="text-gray-400">No messages found for this filter.</p>
+                </div>
+              )}
             </div>
-          )}
-        </TabsContent>
+          </TabsContent>
+        ))}
       </Tabs>
     </div>
   )

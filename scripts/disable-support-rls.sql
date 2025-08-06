@@ -1,4 +1,6 @@
 -- Completely disable RLS on support_messages table since support forms should be accessible to everyone
+BEGIN;
+
 ALTER TABLE public.support_messages DISABLE ROW LEVEL SECURITY;
 
 -- Drop all existing policies to clean up
@@ -55,11 +57,11 @@ CREATE TABLE IF NOT EXISTS public.support_messages (
 
 -- Ensure the table structure is correct
 ALTER TABLE public.support_messages 
-  ALTER COLUMN id SET DEFAULT nextval('support_messages_id_seq'),
+  ALTER COLUMN id SET DEFAULT nextval('public.support_messages_id_seq'),
   ALTER COLUMN created_at SET DEFAULT now(),
   ALTER COLUMN updated_at SET DEFAULT now(),
   ALTER COLUMN status SET DEFAULT 'open',
-  ALTER COLUMN priority SET DEFAULT 'normal';
+  ALTER COLUMN priority SET DEFAULT 'medium';
 
 -- Create or replace the updated_at trigger
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()
@@ -75,3 +77,5 @@ CREATE TRIGGER update_support_messages_updated_at
     BEFORE UPDATE ON public.support_messages
     FOR EACH ROW
     EXECUTE FUNCTION public.update_updated_at_column();
+
+COMMIT;

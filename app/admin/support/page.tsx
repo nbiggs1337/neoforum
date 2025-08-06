@@ -1,133 +1,79 @@
-import { Suspense } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Zap, Mail, Clock, CheckCircle, AlertCircle, Users } from 'lucide-react'
-import Link from 'next/link'
-import { Button } from '@/components/ui/button'
-import { SupportMessagesList } from './support-messages-list'
-import { getSupportMessages } from '@/app/actions/support'
+import { Suspense } from "react"
+import { createServerSupabaseClient } from "@/lib/supabase"
+import { SupportMessagesList } from "./support-messages-list"
+
+async function getSupportStats() {
+  const supabase = await createServerSupabaseClient()
+  
+  const { data: messages } = await supabase
+    .from("support_messages")
+    .select("status, priority")
+  
+  if (!messages) return { total: 0, open: 0, inProgress: 0, closed: 0, high: 0 }
+  
+  return {
+    total: messages.length,
+    open: messages.filter(m => m.status === 'open').length,
+    inProgress: messages.filter(m => m.status === 'in_progress').length,
+    closed: messages.filter(m => m.status === 'closed').length,
+    high: messages.filter(m => m.priority === 'high').length,
+  }
+}
 
 export default async function AdminSupportPage() {
-  const result = await getSupportMessages()
-
-  if (!result.success) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600">{result.error}</p>
-        </div>
-      </div>
-    )
-  }
-
-  const messages = result.data || []
-  const openMessages = messages.filter(m => m.status === 'open')
-  const inProgressMessages = messages.filter(m => m.status === 'in_progress')
-  const resolvedMessages = messages.filter(m => m.status === 'resolved')
+  const stats = await getSupportStats()
 
   return (
-    <div className="min-h-screen bg-black text-white">
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20 cyberpunk-enhanced">
-        <div className="absolute inset-0 cyberpunk-bg"></div>
-      </div>
-
-      <header className="relative z-10 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <Link href="/admin" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
-              <Zap className="w-5 h-5 text-black" />
-            </div>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-              Admin Support
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 relative overflow-hidden">
+      {/* Cyberpunk background effects */}
+      <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center [mask-image:linear-gradient(180deg,white,rgba(255,255,255,0.6))]" />
+      <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-purple-500/10 to-pink-500/10" />
+      
+      <div className="relative z-10 p-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text text-transparent mb-2">
+              Support Management
             </h1>
-          </Link>
-          <nav className="flex items-center space-x-4">
-            <Link href="/admin">
-              <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20">
-                Back to Admin
-              </Button>
-            </Link>
-          </nav>
-        </div>
-      </header>
+            <p className="text-gray-300">Manage and respond to user support requests</p>
+          </div>
 
-      <div className="relative z-10 container mx-auto px-4 py-8">
-        {/* Page Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white mb-2">Support Messages</h1>
-          <p className="text-gray-400">Manage and respond to user support requests</p>
-        </div>
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
+            <div className="bg-gray-800/50 backdrop-blur-sm border border-orange-500/30 rounded-lg p-6">
+              <div className="text-2xl font-bold text-orange-400">{stats.total}</div>
+              <div className="text-sm text-gray-300">Total Messages</div>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur-sm border border-blue-500/30 rounded-lg p-6">
+              <div className="text-2xl font-bold text-blue-400">{stats.open}</div>
+              <div className="text-sm text-gray-300">Open</div>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur-sm border border-yellow-500/30 rounded-lg p-6">
+              <div className="text-2xl font-bold text-yellow-400">{stats.inProgress}</div>
+              <div className="text-sm text-gray-300">In Progress</div>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur-sm border border-green-500/30 rounded-lg p-6">
+              <div className="text-2xl font-bold text-green-400">{stats.closed}</div>
+              <div className="text-sm text-gray-300">Closed</div>
+            </div>
+            <div className="bg-gray-800/50 backdrop-blur-sm border border-red-500/30 rounded-lg p-6">
+              <div className="text-2xl font-bold text-red-400">{stats.high}</div>
+              <div className="text-sm text-gray-300">High Priority</div>
+            </div>
+          </div>
 
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-4 gap-6 mb-8">
-          <Card className="bg-black/50 border-orange-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-orange-300 text-sm font-medium">Open</p>
-                  <p className="text-2xl font-bold text-white">{openMessages.length}</p>
-                </div>
-                <Clock className="w-8 h-8 text-orange-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/50 border-blue-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-blue-300 text-sm font-medium">In Progress</p>
-                  <p className="text-2xl font-bold text-white">{inProgressMessages.length}</p>
-                </div>
-                <Users className="w-8 h-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/50 border-green-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-green-300 text-sm font-medium">Resolved</p>
-                  <p className="text-2xl font-bold text-white">{resolvedMessages.length}</p>
-                </div>
-                <CheckCircle className="w-8 h-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-purple-300 text-sm font-medium">Total</p>
-                  <p className="text-2xl font-bold text-white">{messages.length}</p>
-                </div>
-                <Mail className="w-8 h-8 text-purple-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Support Messages List */}
-        <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-purple-400">Support Messages</CardTitle>
-            <CardDescription className="text-gray-400">
-              View and manage all support requests from users
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+          {/* Support Messages */}
+          <div className="bg-gray-800/50 backdrop-blur-sm border border-purple-500/30 rounded-lg">
             <Suspense fallback={
-              <div className="flex items-center justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400"></div>
+              <div className="p-8 text-center">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto"></div>
+                <p className="text-gray-300 mt-4">Loading support messages...</p>
               </div>
             }>
-              <SupportMessagesList messages={messages} />
+              <SupportMessagesList filter="all" />
             </Suspense>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </div>
   )
