@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
-import { ArrowLeft, Settings, Shield, Palette, Globe } from "lucide-react"
+import { ArrowLeft, Settings, Shield, Palette, Globe } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { ForumSettingsForm } from "@/components/forum-settings-form"
 import { ForumModeratorsForm } from "@/components/forum-moderators-form"
@@ -15,7 +15,7 @@ interface ForumSettingsPageProps {
 }
 
 async function getForumSettingsData(subdomain: string) {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()  // Add await here
 
   // Get current user
   const {

@@ -18,13 +18,13 @@ export default async function AdminCommentsLayout({
   }
 
   // Check if user is admin
-  const { data: profile, error } = await supabase
+  const { data: profile } = await supabase
     .from("profiles")
     .select("role")
     .eq("id", user.id)
     .single()
 
-  if (error || !profile || profile.role !== "admin") {
+  if (profile?.role !== "admin") {
     redirect("/")
   }
 
