@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Users, MessageSquare, Settings, User, LogOut, Eye, ThumbsUp, Calendar } from "lucide-react"
+import { Zap, Users, MessageSquare, Settings, User, LogOut, Eye, ThumbsUp, Calendar } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { CreateForumForm } from "@/components/create-forum-form"
 
@@ -30,6 +30,9 @@ interface DashboardData {
     downvotes: number
     comment_count: number
     created_at: string
+    author: {
+      username: string
+    }
     forum: {
       name: string
       subdomain: string
@@ -72,7 +75,7 @@ async function getDashboardData(): Promise<DashboardData> {
     supabase.from("forum_members").select("forum_id").eq("user_id", user.id),
   ])
 
-  // Get recent posts
+  // Get recent posts from ALL users across the site
   const { data: recentPosts } = await supabase
     .from("posts")
     .select(`
@@ -83,9 +86,10 @@ async function getDashboardData(): Promise<DashboardData> {
       downvotes,
       comment_count,
       created_at,
+      profiles!inner(username),
       forums!inner(name, subdomain)
     `)
-    .eq("author_id", user.id)
+    .eq("status", "published")
     .order("created_at", { ascending: false })
     .limit(5)
 
@@ -123,6 +127,7 @@ async function getDashboardData(): Promise<DashboardData> {
     recentPosts:
       recentPosts?.map((post) => ({
         ...post,
+        author: post.profiles,
         forum: post.forums,
       })) || [],
     joinedForums: joinedForums?.map((item) => item.forums).filter(Boolean) || [],
@@ -290,9 +295,15 @@ export default async function DashboardPage() {
                       </Link>
                       <p className="text-gray-400 text-sm mb-3 line-clamp-2">{post.content}</p>
                       <div className="flex items-center justify-between text-sm">
-                        <Link href={`/forum/${post.forum.subdomain}`} className="text-purple-400 hover:text-purple-300">
-                          f/{post.forum.subdomain}
-                        </Link>
+                        <div className="flex items-center space-x-2">
+                          <Link href={`/forum/${post.forum.subdomain}`} className="text-purple-400 hover:text-purple-300">
+                            f/{post.forum.subdomain}
+                          </Link>
+                          <span className="text-gray-500">•</span>
+                          <Link href={`/user/${post.author.username}`} className="text-cyan-400 hover:text-cyan-300">
+                            u/{post.author.username}
+                          </Link>
+                        </div>
                         <div className="flex items-center space-x-4 text-gray-500">
                           <span className="flex items-center">
                             <ThumbsUp className="w-4 h-4 mr-1" />
