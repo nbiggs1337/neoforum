@@ -149,13 +149,15 @@ export function ExploreClient({ initialForums, currentUserId }: ExploreClientPro
 
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">by {forum.owner_display_name}</div>
-                {currentUserId && (
+                {currentUserId && !forum.is_owner && (
                   <JoinForumButton
                     forumId={forum.id}
                     isJoined={!!forum.user_membership}
                     memberCount={forum.member_count}
-                    isOwner={forum.is_owner}
                   />
+                )}
+                {forum.is_owner && (
+                  <div className="text-xs text-purple-400 font-medium">Owner</div>
                 )}
               </div>
             </CardContent>

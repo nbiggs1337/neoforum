@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { updateProfile, uploadAvatar } from "@/app/actions/profile"
-import { Camera, Upload, X, Check } from "lucide-react"
+import { Camera, Upload, X, Check } from 'lucide-react'
 
 interface ProfileFormProps {
   user: any
@@ -27,6 +27,9 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
   async function handleSubmit(formData: FormData) {
     setIsLoading(true)
     setMessage("")
+
+    // Add the current avatar URL to the form data
+    formData.set("avatar_url", avatarUrl)
 
     const result = await updateProfile(formData)
 
@@ -79,8 +82,8 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
 
     if (result.error) {
       setMessage(result.error)
-    } else if (result.url) {
-      setAvatarUrl(result.url)
+    } else if (result.avatarUrl) {
+      setAvatarUrl(result.avatarUrl)
       setPreviewUrl("")
       setSelectedFile(null)
       setMessage("Avatar updated successfully!")
@@ -88,6 +91,8 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
+      // Force page refresh to show updated avatar
+      window.location.reload()
     }
 
     setIsLoading(false)
@@ -178,8 +183,6 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
 
       {/* Profile Form */}
       <form action={handleSubmit} className="space-y-6">
-        <input type="hidden" name="avatar_url" value={avatarUrl} />
-
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="space-y-2">
             <Label htmlFor="username" className="text-white">

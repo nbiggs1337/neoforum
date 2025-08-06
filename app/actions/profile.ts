@@ -131,20 +131,26 @@ export async function uploadAvatar(formData: FormData) {
     const fileName = `avatar-${Date.now()}.${fileExt}`
     const filePath = `${user.id}/${fileName}`
 
-    // Upload to storage using service role client to bypass RLS
+    console.log("Uploading file:", fileName, "Size:", file.size)
+
+    // Upload to storage
     const { data, error: uploadError } = await supabase.storage.from("user-uploads").upload(filePath, file, {
       upsert: true,
     })
 
     if (uploadError) {
       console.error("Storage upload error:", uploadError)
-      throw new Error("Failed to upload file")
+      throw new Error(`Failed to upload file: ${uploadError.message}`)
     }
+
+    console.log("Upload successful:", data)
 
     // Get public URL
     const {
       data: { publicUrl },
     } = supabase.storage.from("user-uploads").getPublicUrl(filePath)
+
+    console.log("Public URL:", publicUrl)
 
     // Update profile with new avatar URL
     const { error: updateError } = await supabase
@@ -157,8 +163,10 @@ export async function uploadAvatar(formData: FormData) {
 
     if (updateError) {
       console.error("Profile avatar update error:", updateError)
-      throw new Error("Failed to update profile avatar")
+      throw new Error(`Failed to update profile avatar: ${updateError.message}`)
     }
+
+    console.log("Profile updated with avatar URL:", publicUrl)
 
     revalidatePath("/settings")
     return { success: true, avatarUrl: publicUrl }
