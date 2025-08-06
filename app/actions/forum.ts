@@ -239,7 +239,6 @@ export async function joinForum(forumId: string) {
       forum_id: forumId,
       user_id: user.id,
       role: "member",
-      joined_at: new Date().toISOString(),
     })
 
     if (joinError) {
@@ -313,6 +312,8 @@ export async function leaveForum(forumId: string) {
 }
 
 export async function followForum(forumId: string) {
+  console.log("followForum called with forumId:", forumId)
+  
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -321,34 +322,70 @@ export async function followForum(forumId: string) {
       error: authError,
     } = await supabase.auth.getUser()
 
+    console.log("Follow forum auth check:", { user: user?.id, error: authError })
+
     if (authError || !user) {
+      console.log("Authentication failed for follow")
       return { error: "Authentication required" }
     }
 
+    // Check if user profile exists, create if not
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .limit(1)
+
+    if (!existingProfile || existingProfile.length === 0) {
+      console.log("Creating user profile for follow...")
+      const { error: createProfileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: user.id,
+          username: user.user_metadata?.username || user.email?.split("@")[0] || "user",
+          display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split("@")[0] || "User",
+          role: "user",
+        })
+
+      if (createProfileError) {
+        console.error("Failed to create profile for follow:", createProfileError)
+        return { error: "Failed to create user profile" }
+      }
+    }
+
     // Check if already following
-    const { data: existingFollow } = await supabase
+    const { data: existingFollow, error: followCheckError } = await supabase
       .from("forum_follows")
       .select("id")
       .eq("forum_id", forumId)
       .eq("user_id", user.id)
-      .single()
+      .limit(1)
 
-    if (existingFollow) {
+    console.log("Follow check result:", { follow: existingFollow, error: followCheckError })
+
+    if (followCheckError) {
+      console.error("Error checking follow status:", followCheckError)
+      return { error: "Failed to check follow status" }
+    }
+
+    if (existingFollow && existingFollow.length > 0) {
+      console.log("User is already following")
       return { error: "Already following this forum" }
     }
 
     // Add follow
+    console.log("Adding forum follow...")
     const { error: followError } = await supabase.from("forum_follows").insert({
       forum_id: forumId,
       user_id: user.id,
-      followed_at: new Date().toISOString(),
     })
 
     if (followError) {
       console.error("Error following forum:", followError)
-      return { error: "Failed to follow forum" }
+      return { error: `Failed to follow forum: ${followError.message}` }
     }
 
+    console.log("Successfully followed forum")
     revalidatePath("/explore")
     revalidatePath(`/forum/${forumId}`)
     return { success: true }
@@ -359,6 +396,8 @@ export async function followForum(forumId: string) {
 }
 
 export async function unfollowForum(forumId: string) {
+  console.log("unfollowForum called with forumId:", forumId)
+  
   try {
     const supabase = await createServerSupabaseClient()
 
@@ -367,11 +406,15 @@ export async function unfollowForum(forumId: string) {
       error: authError,
     } = await supabase.auth.getUser()
 
+    console.log("Unfollow forum auth check:", { user: user?.id, error: authError })
+
     if (authError || !user) {
+      console.log("Authentication failed for unfollow")
       return { error: "Authentication required" }
     }
 
     // Remove follow
+    console.log("Removing forum follow...")
     const { error: unfollowError } = await supabase
       .from("forum_follows")
       .delete()
@@ -380,9 +423,10 @@ export async function unfollowForum(forumId: string) {
 
     if (unfollowError) {
       console.error("Error unfollowing forum:", unfollowError)
-      return { error: "Failed to unfollow forum" }
+      return { error: `Failed to unfollow forum: ${unfollowError.message}` }
     }
 
+    console.log("Successfully unfollowed forum")
     revalidatePath("/explore")
     revalidatePath(`/forum/${forumId}`)
     return { success: true }
