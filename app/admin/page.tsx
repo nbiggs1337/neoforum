@@ -770,7 +770,7 @@ export default function AdminPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
+                <div className="grid md:grid-cols-4 gap-4">
                   <Button
                     variant="outline"
                     className="border-red-500/30 text-red-300 hover:bg-red-500/20 bg-transparent h-20 flex-col"
@@ -778,6 +778,14 @@ export default function AdminPage() {
                   >
                     <MessageSquare className="w-6 h-6 mb-2" />
                     Manage Posts
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="border-red-500/30 text-red-300 hover:bg-red-500/20 bg-transparent h-20 flex-col"
+                    onClick={() => window.open("/admin/comments")}
+                  >
+                    <MessageSquare className="w-6 h-6 mb-2" />
+                    Manage Comments
                   </Button>
                   <Button
                     variant="outline"
