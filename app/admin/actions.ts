@@ -317,12 +317,20 @@ export async function banUser(userId: string, reason: string) {
 
 export async function unbanUser(userId: string) {
   try {
-    const user = await getCurrentUser()
-    if (!user || user.role !== 'admin') {
-      throw new Error('Authentication required')
+    const user = await requireAuth()
+    const supabase = await createServerSupabaseClient()
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || profile?.role !== "admin") {
+      throw new Error("Unauthorized")
     }
 
-    const supabase = await createServerSupabaseClient()
     const { error } = await supabase
       .from('profiles')
       .update({ 
