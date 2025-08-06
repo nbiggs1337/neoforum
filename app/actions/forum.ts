@@ -194,30 +194,63 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
 
 export async function joinForum(forumId: string) {
   try {
+    console.log("Join forum called with forumId:", forumId)
     const supabase = await createServerSupabaseClient()
 
     // Get current user
     const {
       data: { user },
+      error: userError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
+    console.log("User from auth:", user?.id, "Error:", userError)
+
+    if (userError || !user) {
+      console.log("Authentication failed")
       return { error: "You must be logged in to join a forum" }
     }
 
+    // Check if user profile exists, create if not
+    const { data: existingProfile, error: profileCheckError } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single()
+
+    console.log("Profile check result:", existingProfile, "Error:", profileCheckError)
+
+    if (!existingProfile && profileCheckError) {
+      console.log("Creating profile for user:", user.id)
+      const username = user.email?.split("@")[0] || "user"
+      const { error: profileError } = await supabase.from("profiles").insert({
+        id: user.id,
+        username: username,
+        display_name: username,
+      })
+
+      if (profileError) {
+        console.error("Profile creation error:", profileError)
+        return { error: "Failed to create user profile" }
+      }
+    }
+
     // Check if already a member
-    const { data: existingMember } = await supabase
+    const { data: existingMember, error: memberCheckError } = await supabase
       .from("forum_members")
       .select("id")
       .eq("forum_id", forumId)
       .eq("user_id", user.id)
       .single()
 
+    console.log("Member check result:", existingMember, "Error:", memberCheckError)
+
     if (existingMember) {
+      console.log("User is already a member")
       return { error: "Already a member" }
     }
 
     // Add as member
+    console.log("Adding user as member to forum:", forumId)
     const { error: memberError } = await supabase.from("forum_members").insert({
       forum_id: forumId,
       user_id: user.id,
@@ -230,6 +263,7 @@ export async function joinForum(forumId: string) {
     }
 
     // Update member count
+    console.log("Updating member count for forum:", forumId)
     const { error: updateError } = await supabase.rpc("increment_forum_members", {
       target_forum_id: forumId,
     })
@@ -238,6 +272,7 @@ export async function joinForum(forumId: string) {
       console.error("Failed to update member count:", updateError)
     }
 
+    console.log("Successfully joined forum")
     revalidatePath("/explore")
     return { success: true }
   } catch (error: any) {
