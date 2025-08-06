@@ -9,13 +9,62 @@ export async function voteOnPost(postId: string, voteType: number) {
   console.log("Post ID:", postId, "Vote Type:", voteType)
 
   try {
-    // Get authenticated user
-    const user = await requireAuth()
-    console.log("User ID:", user.id)
-
-    // Create Supabase client
+    // Create Supabase client first
     const supabase = await createServerSupabaseClient()
     console.log("Supabase client created")
+
+    // Get authenticated user
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      console.error("Authentication error:", authError)
+      throw new Error("Authentication required")
+    }
+
+    console.log("User ID:", user.id)
+
+    // Get or create user profile
+    let { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError && profileError.code === "PGRST116") {
+      // Profile doesn't exist, create it
+      console.log("Creating user profile...")
+      const { data: newProfile, error: createError } = await supabase
+        .from("profiles")
+        .insert({
+          id: user.id,
+          username: user.user_metadata?.username || user.email?.split("@")[0] || "user",
+          display_name:
+            user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split("@")[0] || "User",
+          role: "user",
+        })
+        .select()
+        .single()
+
+      if (createError) {
+        console.error("Failed to create user profile:", createError)
+        throw new Error("Failed to create user profile")
+      }
+
+      profile = newProfile
+      console.log("Profile created successfully:", profile)
+    } else if (profileError) {
+      console.error("Profile fetch error:", profileError)
+      throw new Error("Failed to fetch user profile")
+    }
+
+    if (!profile) {
+      throw new Error("User profile not found")
+    }
+
+    console.log("User profile found:", profile.username)
 
     // Check for existing vote
     console.log("Checking for existing vote...")
