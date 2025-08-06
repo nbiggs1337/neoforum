@@ -1,32 +1,29 @@
 "use server"
 
 import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase"
-import { requireAuth } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 
 export async function getAdminStats() {
   try {
-    const user = await requireAuth()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
     const supabase = await createServerSupabaseClient()
 
     // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    console.log("Current user role:", profile?.role)
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
 
-    // Get basic counts
+    // Get basic counts with error handling
     const [usersResult, forumsResult, postsResult, reportsResult] = await Promise.all([
-      supabase.from("profiles").select("id, created_at").order("created_at", { ascending: false }),
-      supabase.from("forums").select("id").eq("status", "active"),
-      supabase.from("posts").select("id, created_at").eq("status", "published"),
-      supabase.from("reports").select("id").eq("status", "pending"),
+      supabase.from("profiles").select("id, created_at").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("forums").select("id").eq("status", "active").limit(1000),
+      supabase.from("posts").select("id, created_at").eq("status", "published").limit(1000),
+      supabase.from("reports").select("id").eq("status", "pending").limit(1000),
     ])
 
     const users = usersResult.data || []
@@ -63,21 +60,26 @@ export async function getAdminStats() {
 
 export async function getAllUsers() {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
 
-    const { data: users, error } = await supabase.from("profiles").select("*").order("created_at", { ascending: false })
+    const supabase = await createServerSupabaseClient()
+
+    // Add delay to prevent rate limiting
+    await new Promise(resolve => setTimeout(resolve, 100))
+
+    const { data: users, error } = await supabase
+      .from("profiles")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(50)
 
     if (error) throw error
 
@@ -90,39 +92,54 @@ export async function getAllUsers() {
 
 export async function getAllForums() {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
 
-    // Get forums first
+    const supabase = await createServerSupabaseClient()
+
+    // Add delay to prevent rate limiting
+    await new Promise(resolve => setTimeout(resolve, 200))
+
+    // Get forums with limit to prevent "Too Many Requests" error
     const { data: forums, error: forumsError } = await supabase
       .from("forums")
       .select("*")
       .order("created_at", { ascending: false })
+      .limit(50)
 
     if (forumsError) throw forumsError
 
-    // Get owner usernames separately
-    const forumsWithOwners = await Promise.all(
-      (forums || []).map(async (forum) => {
-        const { data: owner } = await supabase.from("profiles").select("username").eq("id", forum.owner_id).single()
+    // Get owner usernames with rate limiting
+    const forumsWithOwners = []
+    for (const forum of forums || []) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 50))
+        
+        const { data: owner } = await supabase
+          .from("profiles")
+          .select("username")
+          .eq("id", forum.owner_id)
+          .single()
 
-        return {
+        forumsWithOwners.push({
           ...forum,
           owner_username: owner?.username || "Unknown",
-        }
-      }),
-    )
+        })
+      } catch (error) {
+        console.error(`Error fetching owner for forum ${forum.id}:`, error)
+        forumsWithOwners.push({
+          ...forum,
+          owner_username: "Unknown",
+        })
+      }
+    }
 
     return forumsWithOwners
   } catch (error) {
@@ -133,55 +150,71 @@ export async function getAllForums() {
 
 export async function getAllReports() {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
 
-    // Get reports first
+    const supabase = await createServerSupabaseClient()
+
+    // Add delay to prevent rate limiting
+    await new Promise(resolve => setTimeout(resolve, 300))
+
+    // Get reports with limit to prevent rate limiting
     const { data: reports, error: reportsError } = await supabase
       .from("reports")
       .select("*")
       .order("created_at", { ascending: false })
+      .limit(25)
 
     if (reportsError) throw reportsError
 
-    // Get related data separately for each report
-    const reportsWithDetails = await Promise.all(
-      (reports || []).map(async (report) => {
-        const [reporter, reportedUser, post, forum] = await Promise.all([
-          report.reporter_id
-            ? supabase.from("profiles").select("username").eq("id", report.reporter_id).single()
-            : Promise.resolve({ data: null }),
-          report.reported_user_id
-            ? supabase.from("profiles").select("username").eq("id", report.reported_user_id).single()
-            : Promise.resolve({ data: null }),
-          report.post_id
-            ? supabase.from("posts").select("title").eq("id", report.post_id).single()
-            : Promise.resolve({ data: null }),
-          report.forum_id
-            ? supabase.from("forums").select("name").eq("id", report.forum_id).single()
-            : Promise.resolve({ data: null }),
-        ])
+    // Get related data with rate limiting
+    const reportsWithDetails = []
+    for (const report of reports || []) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 100))
 
-        return {
+        const reporter = report.reporter_id
+          ? await supabase.from("profiles").select("username").eq("id", report.reporter_id).single()
+          : { data: null }
+
+        await new Promise(resolve => setTimeout(resolve, 50))
+
+        const post = report.post_id
+          ? await supabase.from("posts").select("title, forum_id").eq("id", report.post_id).single()
+          : { data: null }
+
+        // Get forum name if post exists
+        let forum = { data: null }
+        if (post.data?.forum_id) {
+          await new Promise(resolve => setTimeout(resolve, 50))
+          forum = await supabase.from("forums").select("name").eq("id", post.data.forum_id).single()
+        }
+
+        reportsWithDetails.push({
           ...report,
           reporter_username: reporter.data?.username || "Unknown",
-          reported_user_username: reportedUser.data?.username || "Unknown",
+          reported_user_username: "Unknown", // Not used for post reports
           post_title: post.data?.title || "Unknown",
           forum_name: forum.data?.name || "Unknown",
-        }
-      }),
-    )
+        })
+      } catch (error) {
+        console.error(`Error fetching details for report ${report.id}:`, error)
+        reportsWithDetails.push({
+          ...report,
+          reporter_username: "Unknown",
+          reported_user_username: "Unknown",
+          post_title: "Unknown",
+          forum_name: "Unknown",
+        })
+      }
+    }
 
     return reportsWithDetails
   } catch (error) {
@@ -192,19 +225,17 @@ export async function getAllReports() {
 
 export async function banUser(userId: string, reason: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     // Calculate ban expiry (30 days from now)
     const banUntil = new Date()
@@ -236,19 +267,17 @@ export async function banUser(userId: string, reason: string) {
 
 export async function unbanUser(userId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     // Remove ban from user profile
     const { error } = await supabase
@@ -276,17 +305,13 @@ export async function unbanUser(userId: string) {
 
 export async function deleteUser(userId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
 
@@ -311,19 +336,17 @@ export async function deleteUser(userId: string) {
 
 export async function suspendForum(forumId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase.from("forums").update({ status: "suspended" }).eq("id", forumId)
 
@@ -338,19 +361,17 @@ export async function suspendForum(forumId: string) {
 
 export async function activateForum(forumId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase.from("forums").update({ status: "active" }).eq("id", forumId)
 
@@ -365,19 +386,17 @@ export async function activateForum(forumId: string) {
 
 export async function deleteForum(forumId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase.from("forums").update({ status: "inactive" }).eq("id", forumId)
 
@@ -392,26 +411,24 @@ export async function deleteForum(forumId: string) {
 
 export async function resolveReport(reportId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
       .from("reports")
       .update({
         status: "resolved",
-        moderator_id: user.id,
-        resolved_at: new Date().toISOString(),
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
       })
       .eq("id", reportId)
 
@@ -426,26 +443,24 @@ export async function resolveReport(reportId: string) {
 
 export async function dismissReport(reportId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
       .from("reports")
       .update({
         status: "dismissed",
-        moderator_id: user.id,
-        resolved_at: new Date().toISOString(),
+        reviewed_by: user.id,
+        reviewed_at: new Date().toISOString(),
       })
       .eq("id", reportId)
 
@@ -460,19 +475,17 @@ export async function dismissReport(reportId: string) {
 
 export async function promoteToAdmin(userId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
       .from("profiles")
@@ -490,19 +503,17 @@ export async function promoteToAdmin(userId: string) {
 
 export async function promoteToModerator(userId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
       .from("profiles")
@@ -520,19 +531,17 @@ export async function promoteToModerator(userId: string) {
 
 export async function demoteToUser(userId: string) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
 
-    // Check if user is admin
-    const { data: profile, error: profileError } = await supabase
-      .from("profiles")
-      .select("role")
-      .eq("id", user.id)
-      .single()
-
-    if (profileError || profile?.role !== "admin") {
+    if (user.role !== "admin") {
       throw new Error("Unauthorized")
     }
+
+    const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
       .from("profiles")
