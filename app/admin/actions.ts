@@ -206,10 +206,28 @@ export async function banUser(userId: string, reason: string) {
       throw new Error("Unauthorized")
     }
 
-    // Log the action since we don't have ban functionality
-    console.log(`Admin ${user.id} attempted to ban user ${userId} for reason: ${reason}`)
+    // Calculate ban expiry (30 days from now)
+    const banUntil = new Date()
+    banUntil.setDate(banUntil.getDate() + 30)
 
-    return { success: true, message: "Ban functionality not implemented yet" }
+    // Update user profile with ban information
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        is_banned: true,
+        banned_until: banUntil.toISOString(),
+        ban_reason: reason,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
+
+    if (error) {
+      console.error("Error banning user:", error)
+      throw error
+    }
+
+    console.log(`Successfully banned user ${userId} until ${banUntil.toISOString()} for reason: ${reason}`)
+    return { success: true }
   } catch (error) {
     console.error("Error banning user:", error)
     throw error
@@ -232,10 +250,24 @@ export async function unbanUser(userId: string) {
       throw new Error("Unauthorized")
     }
 
-    // Log the action since we don't have ban functionality
-    console.log(`Admin ${user.id} attempted to unban user ${userId}`)
+    // Remove ban from user profile
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        is_banned: false,
+        banned_until: null,
+        ban_reason: null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", userId)
 
-    return { success: true, message: "Unban functionality not implemented yet" }
+    if (error) {
+      console.error("Error unbanning user:", error)
+      throw error
+    }
+
+    console.log(`Successfully unbanned user ${userId}`)
+    return { success: true }
   } catch (error) {
     console.error("Error unbanning user:", error)
     throw error
