@@ -312,21 +312,20 @@ export default async function ForumPage({ params }: ForumPageProps) {
                       </Link>
                     )}
 
+                    <Link href={`/forum/${forum.subdomain}/about`}>
+                      <Button variant="outline" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
+                        <Info className="w-4 h-4 mr-2" />
+                        About Page
+                      </Button>
+                    </Link>
+
                     {isOwner && (
-                      <>
-                        <Link href={`/forum/${forum.subdomain}/settings`}>
-                          <Button variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 bg-transparent">
-                            <Settings className="w-4 h-4 mr-2" />
-                            Forum Settings
-                          </Button>
-                        </Link>
-                        <Link href={`/forum/${forum.subdomain}/about`}>
-                          <Button variant="outline" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
-                            <Info className="w-4 h-4 mr-2" />
-                            About Page
-                          </Button>
-                        </Link>
-                      </>
+                      <Link href={`/forum/${forum.subdomain}/settings`}>
+                        <Button variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10 bg-transparent">
+                          <Settings className="w-4 h-4 mr-2" />
+                          Forum Settings
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 </CardContent>
@@ -635,35 +634,35 @@ export default async function ForumPage({ params }: ForumPageProps) {
                   </Card>
 
                   {/* Quick Actions Card */}
-                  {isJoined && (
-                    <Card className="bg-black/60 border-cyan-500/30 backdrop-blur-sm">
-                      <CardHeader className="pb-4">
-                        <CardTitle className="text-lg text-cyan-400">Quick Actions</CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-3">
+                  <Card className="bg-black/60 border-cyan-500/30 backdrop-blur-sm">
+                    <CardHeader className="pb-4">
+                      <CardTitle className="text-lg text-cyan-400">Quick Actions</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      {isJoined && (
                         <Link href={`/forum/${forum.subdomain}/create-post`} className="block">
                           <Button className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-black font-semibold">
                             <Plus className="w-4 h-4 mr-2" />
                             Create Post
                           </Button>
                         </Link>
-                        <Link href={`/forum/${forum.subdomain}/about`} className="block">
-                          <Button variant="outline" className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
-                            <Info className="w-4 h-4 mr-2" />
-                            About Page
+                      )}
+                      <Link href={`/forum/${forum.subdomain}/about`} className="block">
+                        <Button variant="outline" className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
+                          <Info className="w-4 h-4 mr-2" />
+                          About Page
+                        </Button>
+                      </Link>
+                      {isOwner && (
+                        <Link href={`/forum/${forum.subdomain}/settings`} className="block">
+                          <Button variant="outline" className="w-full border-purple-500/30 text-purple-400 hover:bg-purple-500/10 bg-transparent">
+                            <Settings className="w-4 h-4 mr-2" />
+                            Forum Settings
                           </Button>
                         </Link>
-                        {isOwner && (
-                          <Link href={`/forum/${forum.subdomain}/settings`} className="block">
-                            <Button variant="outline" className="w-full border-purple-500/30 text-purple-400 hover:bg-purple-500/10 bg-transparent">
-                              <Settings className="w-4 h-4 mr-2" />
-                              Forum Settings
-                            </Button>
-                          </Link>
-                        )}
-                      </CardContent>
-                    </Card>
-                  )}
+                      )}
+                    </CardContent>
+                  </Card>
                 </div>
               </div>
             </div>
