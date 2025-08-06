@@ -254,14 +254,27 @@ export async function addForumModerator(forumId: string, username: string, role:
         return { error: "Failed to add user as moderator" }
       }
 
-      // Update forum member count if adding new member
-      const { error: updateCountError } = await supabase.rpc("increment_forum_member_count", {
-        forum_id: forumId,
-      })
+      // Get current member count and increment it
+      const { data: currentForum } = await supabase
+        .from("forums")
+        .select("member_count")
+        .eq("id", forumId)
+        .single()
 
-      if (updateCountError) {
-        console.error("Error updating member count:", updateCountError)
-        // Don't return error here as the main operation was successful
+      if (currentForum) {
+        const newCount = (currentForum.member_count || 0) + 1
+        const { error: updateCountError } = await supabase
+          .from("forums")
+          .update({
+            member_count: newCount,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", forumId)
+
+        if (updateCountError) {
+          console.error("Error updating member count:", updateCountError)
+          // Don't return error here as the main operation was successful
+        }
       }
     }
 
@@ -325,14 +338,27 @@ export async function removeForumModerator(forumId: string, userId: string) {
       return { error: "Failed to remove moderator" }
     }
 
-    // Update forum member count
-    const { error: updateCountError } = await supabase.rpc("decrement_forum_member_count", {
-      forum_id: forumId,
-    })
+    // Get current member count and decrement it
+    const { data: currentForum } = await supabase
+      .from("forums")
+      .select("member_count")
+      .eq("id", forumId)
+      .single()
 
-    if (updateCountError) {
-      console.error("Error updating member count:", updateCountError)
-      // Don't return error here as the main operation was successful
+    if (currentForum) {
+      const newCount = Math.max((currentForum.member_count || 0) - 1, 0)
+      const { error: updateCountError } = await supabase
+        .from("forums")
+        .update({
+          member_count: newCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", forumId)
+
+      if (updateCountError) {
+        console.error("Error updating member count:", updateCountError)
+        // Don't return error here as the main operation was successful
+      }
     }
 
     revalidatePath(`/forum/${forum.subdomain}/settings`)
@@ -768,14 +794,27 @@ export async function joinForum(forumId: string) {
 
     console.log("Successfully joined forum")
 
-    // Update forum member count
-    const { error: updateError } = await supabase.rpc("increment_forum_member_count", {
-      forum_id: forumId,
-    })
+    // Get current member count and increment it
+    const { data: currentForum } = await supabase
+      .from("forums")
+      .select("member_count")
+      .eq("id", forumId)
+      .single()
 
-    if (updateError) {
-      console.error("Error updating member count:", updateError)
-      // Don't return error here as the join was successful
+    if (currentForum) {
+      const newCount = (currentForum.member_count || 0) + 1
+      const { error: updateError } = await supabase
+        .from("forums")
+        .update({
+          member_count: newCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", forumId)
+
+      if (updateError) {
+        console.error("Error updating member count:", updateError)
+        // Don't return error here as the join was successful
+      }
     }
 
     revalidatePath("/explore")
@@ -812,14 +851,27 @@ export async function leaveForum(forumId: string) {
       return { error: "Failed to leave forum" }
     }
 
-    // Update forum member count
-    const { error: updateError } = await supabase.rpc("decrement_forum_member_count", {
-      forum_id: forumId,
-    })
+    // Get current member count and decrement it
+    const { data: currentForum } = await supabase
+      .from("forums")
+      .select("member_count")
+      .eq("id", forumId)
+      .single()
 
-    if (updateError) {
-      console.error("Error updating member count:", updateError)
-      // Don't return error here as the leave was successful
+    if (currentForum) {
+      const newCount = Math.max((currentForum.member_count || 0) - 1, 0)
+      const { error: updateError } = await supabase
+        .from("forums")
+        .update({
+          member_count: newCount,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", forumId)
+
+      if (updateError) {
+        console.error("Error updating member count:", updateError)
+        // Don't return error here as the leave was successful
+      }
     }
 
     revalidatePath("/explore")
