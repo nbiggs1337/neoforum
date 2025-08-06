@@ -1,7 +1,6 @@
 'use server'
 
 import { createServerSupabaseClient } from "@/lib/supabase"
-import { createClient } from "@supabase/supabase-js"
 import { redirect } from "next/navigation"
 
 export async function signUpAction(prevState: any, formData: FormData) {
@@ -23,29 +22,22 @@ export async function signUpAction(prevState: any, formData: FormData) {
       return { error: "All fields are required" }
     }
 
-    // Use service role client for signup to bypass RLS
-    const serviceRoleClient = createClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
-    )
+    // Use regular client for signup to enable email confirmation
+    const supabase = await createServerSupabaseClient()
 
-    console.log("Creating user with service role client...")
+    console.log("Creating user with email confirmation...")
 
     // Create the user with email confirmation required
-    const { data: authData, error: authError } = await serviceRoleClient.auth.admin.createUser({
+    const { data: authData, error: authError } = await supabase.auth.signUp({
       email,
       password,
-      user_metadata: {
-        username,
-        display_name: username,
-      },
-      email_confirm: false // Require email confirmation
+      options: {
+        data: {
+          username,
+          display_name: username,
+        },
+        emailRedirectTo: `${process.env.NEXT_PUBLIC_SITE_URL}/auth/callback`
+      }
     })
 
     if (authError) {
@@ -59,31 +51,14 @@ export async function signUpAction(prevState: any, formData: FormData) {
     }
 
     console.log("User created successfully:", authData.user.id)
+    console.log("Email confirmation required:", !authData.user.email_confirmed_at)
 
-    // Create profile using service role client
-    const { error: profileError } = await serviceRoleClient
-      .from("profiles")
-      .insert({
-        id: authData.user.id,
-        username,
-        display_name: username,
-        role: "user"
-      })
-
-    if (profileError) {
-      console.error("Profile creation error:", profileError)
-      // Don't fail the signup if profile creation fails
-      console.log("Profile creation failed but user was created successfully")
-    } else {
-      console.log("Profile created successfully")
-    }
-
-    console.log("Signup completed successfully")
+    // Profile will be created automatically via trigger after email confirmation
+    console.log("Signup completed successfully - email confirmation required")
     
-    // Return success state instead of redirecting
     return { 
       success: true, 
-      message: "Account created successfully! Please check your email to verify your account." 
+      message: "Account created successfully! Please check your email to verify your account before signing in." 
     }
     
   } catch (error) {
@@ -119,6 +94,12 @@ export async function signInAction(prevState: any, formData: FormData) {
 
     if (error) {
       console.error("Login error:", error)
+      
+      // Check if it's an email not confirmed error
+      if (error.message.includes("Email not confirmed")) {
+        return { error: "Please check your email and click the confirmation link before signing in." }
+      }
+      
       return { error: error.message }
     }
 
