@@ -5,20 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import {
-  Zap,
-  Users,
-  MessageSquare,
-  Calendar,
-  Globe,
-  ExternalLink,
-  Shield,
-  BookOpen,
-  Edit,
-  Award,
-  LinkIcon,
-  ArrowLeft,
-} from "lucide-react"
+import { Zap, Users, MessageSquare, Calendar, Globe, ExternalLink, Shield, BookOpen, Edit, Award, LinkIcon, ArrowLeft } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 
 interface AboutPageProps {
@@ -35,15 +22,14 @@ async function getForumAboutData(subdomain: string) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Get forum data with owner info
+  // Get forum data with owner info - check both active and inactive forums
   const { data: forum } = await supabase
     .from("forums")
     .select(`
       *,
-      users!forums_owner_id_fkey(username, display_name, avatar_url, created_at)
+      profiles!forums_owner_id_fkey(username, display_name, avatar_url, created_at)
     `)
     .eq("subdomain", subdomain)
-    .eq("status", "active")
     .single()
 
   if (!forum) {
@@ -55,7 +41,7 @@ async function getForumAboutData(subdomain: string) {
     .from("forum_members")
     .select(`
       *,
-      users!forum_members_user_id_fkey(username, display_name, avatar_url)
+      profiles:user_id(username, display_name, avatar_url)
     `)
     .eq("forum_id", forum.id)
     .in("role", ["admin", "moderator"])
@@ -374,18 +360,18 @@ export default async function AboutPage({ params }: AboutPageProps) {
               <CardContent>
                 <div className="flex items-start space-x-3">
                   <Avatar className="w-12 h-12">
-                    <AvatarImage src={forum.users?.avatar_url || "/placeholder.svg"} />
-                    <AvatarFallback>{forum.users?.username?.[0]}</AvatarFallback>
+                    <AvatarImage src={forum.profiles?.avatar_url || "/placeholder.svg"} />
+                    <AvatarFallback>{forum.profiles?.username?.[0]}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-1">
-                      <h4 className="font-semibold text-white">{forum.users?.display_name || forum.users?.username}</h4>
+                      <h4 className="font-semibold text-white">{forum.profiles?.display_name || forum.profiles?.username}</h4>
                       <Badge variant="outline" className="border-yellow-500/50 text-yellow-400 text-xs">
                         Owner
                       </Badge>
                     </div>
-                    <p className="text-gray-500 text-xs">@{forum.users?.username}</p>
-                    <p className="text-gray-500 text-xs">Joined {formatDate(forum.users?.created_at)}</p>
+                    <p className="text-gray-500 text-xs">@{forum.profiles?.username}</p>
+                    <p className="text-gray-500 text-xs">Joined {formatDate(forum.profiles?.created_at)}</p>
                   </div>
                 </div>
               </CardContent>
@@ -401,13 +387,13 @@ export default async function AboutPage({ params }: AboutPageProps) {
                   {moderators.map((mod) => (
                     <div key={mod.id} className="flex items-center space-x-3">
                       <Avatar className="w-10 h-10">
-                        <AvatarImage src={mod.users?.avatar_url || "/placeholder.svg"} />
-                        <AvatarFallback>{mod.users?.username?.[0]}</AvatarFallback>
+                        <AvatarImage src={mod.profiles?.avatar_url || "/placeholder.svg"} />
+                        <AvatarFallback>{mod.profiles?.username?.[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex-1">
                         <div className="flex items-center space-x-2">
                           <h5 className="font-medium text-white text-sm">
-                            {mod.users?.display_name || mod.users?.username}
+                            {mod.profiles?.display_name || mod.profiles?.username}
                           </h5>
                           <Badge
                             variant="outline"
@@ -420,7 +406,7 @@ export default async function AboutPage({ params }: AboutPageProps) {
                             {mod.role}
                           </Badge>
                         </div>
-                        <p className="text-gray-500 text-xs">@{mod.users?.username}</p>
+                        <p className="text-gray-500 text-xs">@{mod.profiles?.username}</p>
                       </div>
                     </div>
                   ))}

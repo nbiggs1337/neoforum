@@ -37,6 +37,8 @@ async function getForumData(subdomain: string) {
         member_count,
         thread_count,
         is_private,
+        icon_url,
+        banner_url,
         created_at,
         updated_at
       `)
@@ -237,14 +239,38 @@ export default async function ForumPage({ params }: ForumPageProps) {
             {/* Forum Header - Enhanced Cyberpunk Style */}
             <div className="relative mb-12">
               <div className="absolute inset-0 bg-gradient-to-r from-purple-600/20 to-cyan-400/20 rounded-2xl blur-xl"></div>
-              <Card className="relative bg-black/80 border-purple-500/30 backdrop-blur-sm">
+              <Card className="relative bg-black/80 border-purple-500/30 backdrop-blur-sm overflow-hidden">
+                {/* Banner Image */}
+                {forum.banner_url && (
+                  <div className="relative h-48 w-full">
+                    <img
+                      src={forum.banner_url || "/placeholder.svg"}
+                      alt={`${forum.name} banner`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent"></div>
+                  </div>
+                )}
                 <CardContent className="p-8">
                   <div className="flex items-start gap-6 mb-6">
                     <div className="relative">
-                      <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-xl flex items-center justify-center text-3xl font-bold animate-glow">
-                        {forum.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 to-purple-600 rounded-xl blur opacity-30 animate-pulse"></div>
+                      {forum.icon_url ? (
+                        <div className="relative">
+                          <img
+                            src={forum.icon_url || "/placeholder.svg"}
+                            alt={`${forum.name} icon`}
+                            className="w-20 h-20 rounded-xl object-cover border-2 border-purple-500/30"
+                          />
+                          <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 to-purple-600 rounded-xl blur opacity-30 animate-pulse"></div>
+                        </div>
+                      ) : (
+                        <div className="relative">
+                          <div className="w-20 h-20 bg-gradient-to-br from-cyan-400 to-purple-600 rounded-xl flex items-center justify-center text-3xl font-bold animate-glow">
+                            {forum.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div className="absolute -inset-1 bg-gradient-to-r from-cyan-400 to-purple-600 rounded-xl blur opacity-30 animate-pulse"></div>
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1">
                       <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 via-purple-500 to-cyan-400 bg-clip-text text-transparent mb-2">
@@ -294,10 +320,10 @@ export default async function ForumPage({ params }: ForumPageProps) {
                             Forum Settings
                           </Button>
                         </Link>
-                        <Link href={`/forum/${forum.subdomain}/about/edit`}>
+                        <Link href={`/forum/${forum.subdomain}/about`}>
                           <Button variant="outline" className="border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
                             <Info className="w-4 h-4 mr-2" />
-                            Edit About Page
+                            About Page
                           </Button>
                         </Link>
                       </>
@@ -621,21 +647,19 @@ export default async function ForumPage({ params }: ForumPageProps) {
                             Create Post
                           </Button>
                         </Link>
+                        <Link href={`/forum/${forum.subdomain}/about`} className="block">
+                          <Button variant="outline" className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
+                            <Info className="w-4 h-4 mr-2" />
+                            About Page
+                          </Button>
+                        </Link>
                         {isOwner && (
-                          <>
-                            <Link href={`/forum/${forum.subdomain}/settings`} className="block">
-                              <Button variant="outline" className="w-full border-purple-500/30 text-purple-400 hover:bg-purple-500/10 bg-transparent">
-                                <Settings className="w-4 h-4 mr-2" />
-                                Forum Settings
-                              </Button>
-                            </Link>
-                            <Link href={`/forum/${forum.subdomain}/about/edit`} className="block">
-                              <Button variant="outline" className="w-full border-cyan-500/30 text-cyan-400 hover:bg-cyan-500/10 bg-transparent">
-                                <Info className="w-4 h-4 mr-2" />
-                                Edit About Page
-                              </Button>
-                            </Link>
-                          </>
+                          <Link href={`/forum/${forum.subdomain}/settings`} className="block">
+                            <Button variant="outline" className="w-full border-purple-500/30 text-purple-400 hover:bg-purple-500/10 bg-transparent">
+                              <Settings className="w-4 h-4 mr-2" />
+                              Forum Settings
+                            </Button>
+                          </Link>
                         )}
                       </CardContent>
                     </Card>

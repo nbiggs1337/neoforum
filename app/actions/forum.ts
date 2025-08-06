@@ -104,7 +104,7 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
       return { error: "You must be logged in" }
     }
 
-    // Check if user is owner or admin
+    // Check if user is owner, admin, or moderator
     const { data: forum } = await supabase.from("forums").select("owner_id, subdomain").eq("id", forumId).single()
 
     if (!forum) {
@@ -121,15 +121,16 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
         .eq("user_id", user.id)
         .single()
 
-      if (!membership || membership.role !== "admin") {
+      if (!membership || !["admin", "moderator"].includes(membership.role)) {
         return { error: "You do not have permission to update this forum" }
       }
     }
 
     const name = formData.get("name") as string
     const description = formData.get("description") as string
-    const longDescription = formData.get("longDescription") as string
+    const longDescription = formData.get("long_description") as string
     const category = formData.get("category") as string
+    const rules = formData.get("rules") as string
 
     if (!name || !category) {
       return { error: "Name and category are required" }
@@ -147,6 +148,7 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
         description,
         long_description: longDescription,
         category,
+        rules,
         updated_at: new Date().toISOString(),
       })
       .eq("id", forumId)
@@ -164,6 +166,524 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
   } catch (error: any) {
     console.error("Update forum settings error:", error.message)
     return { error: error.message || "Failed to update forum settings" }
+  }
+}
+
+export async function addForumModerator(forumId: string, username: string, role: "moderator" | "admin") {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return { error: "You must be logged in" }
+    }
+
+    // Check if current user is owner or admin
+    const { data: forum } = await supabase.from("forums").select("owner_id, subdomain").eq("id", forumId).single()
+
+    if (!forum) {
+      return { error: "Forum not found" }
+    }
+
+    const isOwner = forum.owner_id === user.id
+
+    if (!isOwner) {
+      const { data: membership } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (!membership || membership.role !== "admin") {
+        return { error: "You do not have permission to add moderators" }
+      }
+    }
+
+    // Find user by username
+    const { data: targetUser, error: userFindError } = await supabase
+      .from("profiles")
+      .select("id, username")
+      .eq("username", username.trim())
+      .single()
+
+    if (userFindError || !targetUser) {
+      return { error: "User not found" }
+    }
+
+    // Check if user is already a member
+    const { data: existingMembership, error: membershipError } = await supabase
+      .from("forum_members")
+      .select("id, role")
+      .eq("forum_id", forumId)
+      .eq("user_id", targetUser.id)
+      .single()
+
+    if (membershipError && membershipError.code !== "PGRST116") {
+      console.error("Error checking membership:", membershipError)
+      return { error: "Failed to check user membership" }
+    }
+
+    if (existingMembership) {
+      // Update existing membership
+      const { error: updateError } = await supabase
+        .from("forum_members")
+        .update({ role })
+        .eq("id", existingMembership.id)
+
+      if (updateError) {
+        console.error("Error updating membership:", updateError)
+        return { error: "Failed to update user role" }
+      }
+    } else {
+      // Add new membership
+      const { error: insertError } = await supabase
+        .from("forum_members")
+        .insert({
+          forum_id: forumId,
+          user_id: targetUser.id,
+          role,
+        })
+
+      if (insertError) {
+        console.error("Error adding membership:", insertError)
+        return { error: "Failed to add user as moderator" }
+      }
+
+      // Update forum member count if adding new member
+      const { error: updateCountError } = await supabase.rpc("increment_forum_member_count", {
+        forum_id: forumId,
+      })
+
+      if (updateCountError) {
+        console.error("Error updating member count:", updateCountError)
+        // Don't return error here as the main operation was successful
+      }
+    }
+
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
+    return { success: true }
+  } catch (error: any) {
+    console.error("Add forum moderator error:", error.message)
+    return { error: error.message || "Failed to add moderator" }
+  }
+}
+
+export async function removeForumModerator(forumId: string, userId: string) {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return { error: "You must be logged in" }
+    }
+
+    // Check if current user is owner or admin
+    const { data: forum } = await supabase.from("forums").select("owner_id, subdomain").eq("id", forumId).single()
+
+    if (!forum) {
+      return { error: "Forum not found" }
+    }
+
+    const isOwner = forum.owner_id === user.id
+
+    if (!isOwner) {
+      const { data: membership } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (!membership || membership.role !== "admin") {
+        return { error: "You do not have permission to remove moderators" }
+      }
+    }
+
+    // Cannot remove the forum owner
+    if (userId === forum.owner_id) {
+      return { error: "Cannot remove forum owner" }
+    }
+
+    // Remove moderator
+    const { error: removeError } = await supabase
+      .from("forum_members")
+      .delete()
+      .eq("forum_id", forumId)
+      .eq("user_id", userId)
+
+    if (removeError) {
+      console.error("Error removing moderator:", removeError)
+      return { error: "Failed to remove moderator" }
+    }
+
+    // Update forum member count
+    const { error: updateCountError } = await supabase.rpc("decrement_forum_member_count", {
+      forum_id: forumId,
+    })
+
+    if (updateCountError) {
+      console.error("Error updating member count:", updateCountError)
+      // Don't return error here as the main operation was successful
+    }
+
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
+    return { success: true }
+  } catch (error: any) {
+    console.error("Remove forum moderator error:", error.message)
+    return { error: error.message || "Failed to remove moderator" }
+  }
+}
+
+export async function updateModeratorRole(forumId: string, userId: string, newRole: "moderator" | "admin") {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return { error: "You must be logged in" }
+    }
+
+    // Check if current user is owner or admin
+    const { data: forum } = await supabase.from("forums").select("owner_id, subdomain").eq("id", forumId).single()
+
+    if (!forum) {
+      return { error: "Forum not found" }
+    }
+
+    const isOwner = forum.owner_id === user.id
+
+    if (!isOwner) {
+      const { data: membership } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (!membership || membership.role !== "admin") {
+        return { error: "You do not have permission to update moderator roles" }
+      }
+    }
+
+    // Cannot change the forum owner's role
+    if (userId === forum.owner_id) {
+      return { error: "Cannot change forum owner's role" }
+    }
+
+    // Update moderator role
+    const { error: updateError } = await supabase
+      .from("forum_members")
+      .update({ role: newRole })
+      .eq("forum_id", forumId)
+      .eq("user_id", userId)
+
+    if (updateError) {
+      console.error("Error updating moderator role:", updateError)
+      return { error: "Failed to update moderator role" }
+    }
+
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
+    return { success: true }
+  } catch (error: any) {
+    console.error("Update moderator role error:", error.message)
+    return { error: error.message || "Failed to update moderator role" }
+  }
+}
+
+export async function toggleForumPrivacy(forumId: string) {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      return { error: "You must be logged in" }
+    }
+
+    // Check if user is owner or admin
+    const { data: forum } = await supabase.from("forums").select("owner_id, subdomain, is_private").eq("id", forumId).single()
+
+    if (!forum) {
+      return { error: "Forum not found" }
+    }
+
+    const isOwner = forum.owner_id === user.id
+
+    if (!isOwner) {
+      const { data: membership } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (!membership || membership.role !== "admin") {
+        return { error: "You do not have permission to change privacy settings" }
+      }
+    }
+
+    // Toggle privacy
+    const { error } = await supabase
+      .from("forums")
+      .update({
+        is_private: !forum.is_private,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", forumId)
+
+    if (error) {
+      console.error("Forum privacy toggle error:", error)
+      return { error: "Failed to update privacy settings" }
+    }
+
+    revalidatePath(`/forum/${forum.subdomain}`)
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
+    revalidatePath("/explore")
+
+    return { success: true, isPrivate: !forum.is_private }
+  } catch (error: any) {
+    console.error("Toggle forum privacy error:", error.message)
+    return { error: error.message || "Failed to update privacy settings" }
+  }
+}
+
+export async function uploadForumIcon(forumId: string, formData: FormData) {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    console.log("Starting forum icon upload for forum:", forumId)
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      console.error("Auth error:", userError)
+      return { error: "You must be logged in" }
+    }
+
+    console.log("User authenticated:", user.id)
+
+    // Check if user has permission
+    const { data: forum } = await supabase.from("forums").select("owner_id, subdomain").eq("id", forumId).single()
+
+    if (!forum) {
+      return { error: "Forum not found" }
+    }
+
+    const isOwner = forum.owner_id === user.id
+
+    if (!isOwner) {
+      const { data: membership } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (!membership || !["admin", "moderator"].includes(membership.role)) {
+        return { error: "You do not have permission to upload forum icon" }
+      }
+    }
+
+    const file = formData.get("icon") as File
+
+    if (!file) {
+      return { error: "No file provided" }
+    }
+
+    console.log("File details:", { name: file.name, size: file.size, type: file.type })
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      return { error: "File must be an image" }
+    }
+
+    // Validate file size (max 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      return { error: "File size must be less than 2MB" }
+    }
+
+    // Create a simple filename without special characters
+    const fileExtension = file.name.split('.').pop() || 'jpg'
+    const fileName = `forum-${forumId}-icon-${Date.now()}.${fileExtension}`
+    
+    console.log("Uploading file as:", fileName)
+
+    // Try to upload to storage with service role client
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("forum-images")
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError)
+      return { error: `Failed to upload icon: ${uploadError.message}` }
+    }
+
+    console.log("Upload successful:", uploadData)
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from("forum-images")
+      .getPublicUrl(fileName)
+
+    console.log("Public URL:", publicUrl)
+
+    // Update forum with icon URL
+    const { error: updateError } = await supabase
+      .from("forums")
+      .update({
+        icon_url: publicUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", forumId)
+
+    if (updateError) {
+      console.error("Forum icon update error:", updateError)
+      return { error: "Failed to update forum icon" }
+    }
+
+    console.log("Forum updated successfully")
+
+    revalidatePath(`/forum/${forum.subdomain}`)
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
+
+    return { success: true, iconUrl: publicUrl }
+  } catch (error: any) {
+    console.error("Upload forum icon error:", error)
+    return { error: error.message || "Failed to upload forum icon" }
+  }
+}
+
+export async function uploadForumBanner(forumId: string, formData: FormData) {
+  const supabase = await createServerSupabaseClient()
+
+  try {
+    console.log("Starting forum banner upload for forum:", forumId)
+
+    const {
+      data: { user },
+      error: userError,
+    } = await supabase.auth.getUser()
+
+    if (userError || !user) {
+      console.error("Auth error:", userError)
+      return { error: "You must be logged in" }
+    }
+
+    console.log("User authenticated:", user.id)
+
+    // Check if user has permission
+    const { data: forum } = await supabase.from("forums").select("owner_id, subdomain").eq("id", forumId).single()
+
+    if (!forum) {
+      return { error: "Forum not found" }
+    }
+
+    const isOwner = forum.owner_id === user.id
+
+    if (!isOwner) {
+      const { data: membership } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", user.id)
+        .single()
+
+      if (!membership || !["admin", "moderator"].includes(membership.role)) {
+        return { error: "You do not have permission to upload forum banner" }
+      }
+    }
+
+    const file = formData.get("banner") as File
+
+    if (!file) {
+      return { error: "No file provided" }
+    }
+
+    console.log("File details:", { name: file.name, size: file.size, type: file.type })
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      return { error: "File must be an image" }
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      return { error: "File size must be less than 5MB" }
+    }
+
+    // Create a simple filename without special characters
+    const fileExtension = file.name.split('.').pop() || 'jpg'
+    const fileName = `forum-${forumId}-banner-${Date.now()}.${fileExtension}`
+    
+    console.log("Uploading file as:", fileName)
+
+    // Try to upload to storage
+    const { data: uploadData, error: uploadError } = await supabase.storage
+      .from("forum-images")
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      })
+
+    if (uploadError) {
+      console.error("Storage upload error:", uploadError)
+      return { error: `Failed to upload banner: ${uploadError.message}` }
+    }
+
+    console.log("Upload successful:", uploadData)
+
+    // Get public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from("forum-images")
+      .getPublicUrl(fileName)
+
+    console.log("Public URL:", publicUrl)
+
+    // Update forum with banner URL
+    const { error: updateError } = await supabase
+      .from("forums")
+      .update({
+        banner_url: publicUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", forumId)
+
+    if (updateError) {
+      console.error("Forum banner update error:", updateError)
+      return { error: "Failed to update forum banner" }
+    }
+
+    console.log("Forum updated successfully")
+
+    revalidatePath(`/forum/${forum.subdomain}`)
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
+
+    return { success: true, bannerUrl: publicUrl }
+  } catch (error: any) {
+    console.error("Upload forum banner error:", error)
+    return { error: error.message || "Failed to upload forum banner" }
   }
 }
 

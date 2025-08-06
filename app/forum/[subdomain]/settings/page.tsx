@@ -7,6 +7,8 @@ import { ArrowLeft, Settings, Shield, Palette, Globe } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { ForumSettingsForm } from "@/components/forum-settings-form"
 import { ForumModeratorsForm } from "@/components/forum-moderators-form"
+import { ForumAppearanceForm } from "@/components/forum-appearance-form"
+import { ForumPrivacyForm } from "@/components/forum-privacy-form"
 
 interface ForumSettingsPageProps {
   params: {
@@ -15,7 +17,7 @@ interface ForumSettingsPageProps {
 }
 
 async function getForumSettingsData(subdomain: string) {
-  const supabase = await createServerSupabaseClient()  // Add await here
+  const supabase = await createServerSupabaseClient()
 
   // Get current user
   const {
@@ -31,7 +33,7 @@ async function getForumSettingsData(subdomain: string) {
     .from("forums")
     .select(`
       *,
-      users!forums_owner_id_fkey(username, display_name, avatar_url)
+      profiles:owner_id(username, display_name, avatar_url)
     `)
     .eq("subdomain", subdomain)
     .eq("status", "active")
@@ -41,7 +43,7 @@ async function getForumSettingsData(subdomain: string) {
     redirect("/explore")
   }
 
-  // Check if user is owner or admin
+  // Check if user is owner, admin, or moderator
   const { data: membership } = await supabase
     .from("forum_members")
     .select("role")
@@ -53,6 +55,7 @@ async function getForumSettingsData(subdomain: string) {
   const isAdmin = membership?.role === "admin"
   const isModerator = membership?.role === "moderator"
 
+  // Allow access to owners, admins, and moderators
   if (!isOwner && !isAdmin && !isModerator) {
     redirect(`/forum/${subdomain}`)
   }
@@ -62,7 +65,7 @@ async function getForumSettingsData(subdomain: string) {
     .from("forum_members")
     .select(`
       *,
-      users!forum_members_user_id_fkey(username, display_name, avatar_url)
+      profiles:user_id(username, display_name, avatar_url)
     `)
     .eq("forum_id", forum.id)
     .in("role", ["admin", "moderator"])
@@ -80,7 +83,7 @@ async function getForumSettingsData(subdomain: string) {
 
 export default async function ForumSettingsPage({ params }: ForumSettingsPageProps) {
   const { subdomain } = params
-  const { user, forum, moderators, isOwner, isAdmin } = await getForumSettingsData(subdomain)
+  const { user, forum, moderators, isOwner, isAdmin, isModerator } = await getForumSettingsData(subdomain)
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -120,7 +123,12 @@ export default async function ForumSettingsPage({ params }: ForumSettingsPagePro
             <h2 className="text-3xl font-bold mb-2 bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
               {forum.name} Settings
             </h2>
-            <p className="text-gray-400">Manage your forum settings, appearance, and moderation</p>
+            <p className="text-gray-400">
+              Manage your forum settings, appearance, and moderation
+              {isModerator && !isAdmin && !isOwner && (
+                <span className="ml-2 text-cyan-400">(Moderator Access)</span>
+              )}
+            </p>
           </div>
 
           <div className="grid lg:grid-cols-4 gap-8">
@@ -166,13 +174,18 @@ export default async function ForumSettingsPage({ params }: ForumSettingsPagePro
 
             {/* Main Content */}
             <div className="lg:col-span-3 space-y-8">
-              {/* General Settings */}
+              {/* General Settings - Now accessible to moderators */}
               <section id="general">
                 <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
                   <CardHeader>
                     <CardTitle className="text-xl font-bold text-purple-400">General Settings</CardTitle>
                     <CardDescription className="text-gray-400">
                       Update your forum's basic information and settings
+                      {isModerator && !isAdmin && !isOwner && (
+                        <span className="block text-cyan-400 text-sm mt-1">
+                          As a moderator, you can edit forum details
+                        </span>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -181,7 +194,7 @@ export default async function ForumSettingsPage({ params }: ForumSettingsPagePro
                 </Card>
               </section>
 
-              {/* Appearance Settings */}
+              {/* Appearance Settings - Now accessible to moderators */}
               <section id="appearance">
                 <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
                   <CardHeader>
@@ -191,32 +204,12 @@ export default async function ForumSettingsPage({ params }: ForumSettingsPagePro
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-white font-medium">Forum Icon</h4>
-                          <p className="text-gray-400 text-sm">Upload a custom icon for your forum</p>
-                        </div>
-                        <Button variant="outline" className="border-gray-600 text-gray-300 bg-transparent">
-                          Upload Icon
-                        </Button>
-                      </div>
-                      <Separator className="bg-gray-700" />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-white font-medium">Banner Image</h4>
-                          <p className="text-gray-400 text-sm">Upload a banner image for your forum</p>
-                        </div>
-                        <Button variant="outline" className="border-gray-600 text-gray-300 bg-transparent">
-                          Upload Banner
-                        </Button>
-                      </div>
-                    </div>
+                    <ForumAppearanceForm forum={forum} />
                   </CardContent>
                 </Card>
               </section>
 
-              {/* Moderators Section */}
+              {/* Moderators Section - Only for owners and admins */}
               {(isOwner || isAdmin) && (
                 <section id="moderators">
                   <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
@@ -233,39 +226,22 @@ export default async function ForumSettingsPage({ params }: ForumSettingsPagePro
                 </section>
               )}
 
-              {/* Privacy Settings */}
+              {/* Privacy Settings - Limited access for moderators */}
               <section id="privacy">
                 <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
                   <CardHeader>
                     <CardTitle className="text-xl font-bold text-purple-400">Privacy & Access</CardTitle>
                     <CardDescription className="text-gray-400">
                       Control who can access and participate in your forum
+                      {isModerator && !isAdmin && !isOwner && (
+                        <span className="block text-yellow-400 text-sm mt-1">
+                          Limited access - Contact admin for privacy changes
+                        </span>
+                      )}
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-white font-medium">Forum Visibility</h4>
-                          <p className="text-gray-400 text-sm">
-                            {forum.is_private ? "Private - Only members can view" : "Public - Anyone can view"}
-                          </p>
-                        </div>
-                        <Button variant="outline" className="border-gray-600 text-gray-300 bg-transparent">
-                          {forum.is_private ? "Make Public" : "Make Private"}
-                        </Button>
-                      </div>
-                      <Separator className="bg-gray-700" />
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="text-white font-medium">Member Approval</h4>
-                          <p className="text-gray-400 text-sm">Require approval for new members</p>
-                        </div>
-                        <Button variant="outline" className="border-gray-600 text-gray-300 bg-transparent">
-                          Configure
-                        </Button>
-                      </div>
-                    </div>
+                    <ForumPrivacyForm forum={forum} canEdit={isOwner || isAdmin} />
                   </CardContent>
                 </Card>
               </section>
