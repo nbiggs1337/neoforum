@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { MessageSquare, Reply, ArrowUp, ArrowDown, Flag, Heart, Clock } from "lucide-react"
+import { MessageSquare, Reply, ArrowUp, ArrowDown, Flag, Heart, Clock } from 'lucide-react'
 import { createComment } from "@/app/actions/comment"
 import { voteOnComment } from "@/app/actions/comment-vote"
 
@@ -26,12 +26,12 @@ interface Comment {
 
 interface CommentSectionProps {
   postId: string
-  comments: Comment[]
-  currentUser: any
-  userVotes: Record<string, number>
+  comments?: Comment[]
+  currentUser?: any
+  userVotes?: Record<string, number>
 }
 
-export function CommentSection({ postId, comments, currentUser, userVotes }: CommentSectionProps) {
+export function CommentSection({ postId, comments = [], currentUser, userVotes = {} }: CommentSectionProps) {
   const [newComment, setNewComment] = useState("")
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText] = useState("")
@@ -39,7 +39,7 @@ export function CommentSection({ postId, comments, currentUser, userVotes }: Com
   const [commentVotes, setCommentVotes] = useState<
     Record<string, { upvotes: number; downvotes: number; userVote: string | null }>
   >(
-    comments.reduce(
+    (comments || []).reduce(
       (acc, comment) => {
         acc[comment.id] = {
           upvotes: comment.upvotes || 0,

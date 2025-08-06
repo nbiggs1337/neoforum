@@ -9,7 +9,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { VoteButtons } from "@/components/vote-buttons"
 import { CommentSection } from "@/components/comment-section"
-import { Zap, ArrowLeft, MessageSquare, Share2, Flag, Bookmark, Clock, Eye, Edit, Pin, Lock, Calendar, TrendingUp } from 'lucide-react'
+import { ReportDialog } from "@/components/report-dialog"
+import { Zap, ArrowLeft, MessageSquare, Share2, Bookmark, Clock, Eye, Edit, Pin, Lock, Calendar, TrendingUp } from 'lucide-react'
 
 interface PostPageProps {
   params: {
@@ -396,13 +397,7 @@ export default async function PostPage({ params }: PostPageProps) {
                       >
                         <Share2 className="w-4 h-4" />
                       </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-gray-400 hover:text-red-400 hover:bg-red-500/10"
-                      >
-                        <Flag className="w-4 h-4" />
-                      </Button>
+                      <ReportDialog postId={post.id} disabled={!currentUser} />
                     </div>
                   </div>
                 </div>
