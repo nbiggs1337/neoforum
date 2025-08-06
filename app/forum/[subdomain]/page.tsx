@@ -389,20 +389,20 @@ export default async function ForumPage({ params }: ForumPageProps) {
                                   
                                   {hasImages && (
                                     <div className="mb-4">
-                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                      <div className="grid grid-cols-4 md:grid-cols-6 gap-1">
                                         {post.image_urls.slice(0, 3).map((imageUrl: string, index: number) => (
                                           <div key={index} className="relative aspect-square">
                                             <img
                                               src={imageUrl || "/placeholder.svg"}
                                               alt={`Post image ${index + 1}`}
-                                              className="w-full h-full object-cover rounded-lg border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
+                                              className="w-full h-full object-cover rounded border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
                                               onError={(e) => {
                                                 e.currentTarget.style.display = 'none'
                                               }}
                                             />
                                             {index === 2 && post.image_urls.length > 3 && (
-                                              <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
-                                                <span className="text-white font-bold text-lg">
+                                              <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
+                                                <span className="text-white font-bold text-xs">
                                                   +{post.image_urls.length - 3}
                                                 </span>
                                               </div>
@@ -500,20 +500,20 @@ export default async function ForumPage({ params }: ForumPageProps) {
                                   
                                   {hasImages && (
                                     <div className="mb-4">
-                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                      <div className="grid grid-cols-4 md:grid-cols-6 gap-1">
                                         {post.image_urls.slice(0, 3).map((imageUrl: string, index: number) => (
                                           <div key={index} className="relative aspect-square">
                                             <img
                                               src={imageUrl || "/placeholder.svg"}
                                               alt={`Post image ${index + 1}`}
-                                              className="w-full h-full object-cover rounded-lg border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
+                                              className="w-full h-full object-cover rounded border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
                                               onError={(e) => {
                                                 e.currentTarget.style.display = 'none'
                                               }}
                                             />
                                             {index === 2 && post.image_urls.length > 3 && (
-                                              <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
-                                                <span className="text-white font-bold text-lg">
+                                              <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
+                                                <span className="text-white font-bold text-xs">
                                                   +{post.image_urls.length - 3}
                                                 </span>
                                               </div>

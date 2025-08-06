@@ -345,7 +345,7 @@ export default async function DashboardPage() {
                         
                         {hasImages && (
                           <div className="mb-3">
-                            <div className="grid grid-cols-3 gap-1">
+                            <div className="grid grid-cols-6 gap-1">
                               {post.image_urls!.slice(0, 3).map((imageUrl: string, index: number) => (
                                 <div key={index} className="relative aspect-square">
                                   <img
@@ -358,7 +358,7 @@ export default async function DashboardPage() {
                                   />
                                   {index === 2 && post.image_urls!.length > 3 && (
                                     <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
-                                      <span className="text-white font-bold text-sm">
+                                      <span className="text-white font-bold text-xs">
                                         +{post.image_urls!.length - 3}
                                       </span>
                                     </div>
