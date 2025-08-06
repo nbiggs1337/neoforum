@@ -32,31 +32,51 @@ async function getCommentsData(searchQuery?: string) {
     redirect("/")
   }
 
-  // Build query for comments with better error handling
   try {
-    let query = supabase
+    // First, let's try a simple query to get comments
+    const { data: comments, error } = await supabase
       .from("comments")
       .select(`
         *,
-        profiles!comments_user_id_fkey(username, display_name, avatar_url),
-        posts!comments_post_id_fkey(
+        profiles:user_id (
+          username,
+          display_name,
+          avatar_url
+        ),
+        posts:post_id (
           title,
           id,
-          forums!posts_forum_id_fkey(name, subdomain)
+          forums:forum_id (
+            name,
+            subdomain
+          )
         )
       `)
       .order("created_at", { ascending: false })
+      .limit(100)
 
-    // Apply search filter if provided
-    if (searchQuery) {
-      query = query.or(`content.ilike.%${searchQuery}%,profiles.username.ilike.%${searchQuery}%,profiles.display_name.ilike.%${searchQuery}%,posts.title.ilike.%${searchQuery}%`)
-    }
-
-    const { data: comments, error } = await query.limit(100)
+    console.log("Comments query result:", { comments, error })
 
     if (error) {
       console.error("Error fetching comments:", error)
-      return { comments: [], stats: { total: 0, authors: 0, upvotes: 0, forums: 0 } }
+      // Try a simpler query without joins
+      const { data: simpleComments, error: simpleError } = await supabase
+        .from("comments")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100)
+
+      console.log("Simple comments query:", { simpleComments, simpleError })
+
+      return { 
+        comments: simpleComments || [], 
+        stats: { 
+          total: simpleComments?.length || 0, 
+          authors: 0, 
+          upvotes: 0, 
+          forums: 0 
+        } 
+      }
     }
 
     // Calculate statistics
@@ -187,6 +207,13 @@ export default async function AdminCommentsPage({ searchParams }: AdminCommentsP
           </CardContent>
         </Card>
 
+        {/* Debug Info */}
+        <Card className="bg-black/50 border-yellow-500/30 backdrop-blur-sm mb-8">
+          <CardContent className="p-4">
+            <p className="text-yellow-400 text-sm">Debug: Found {comments.length} comments</p>
+          </CardContent>
+        </Card>
+
         {/* Comments List */}
         <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
           <CardHeader>
@@ -279,6 +306,7 @@ export default async function AdminCommentsPage({ searchParams }: AdminCommentsP
                     <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                       <div className="flex items-center space-x-4 text-sm text-gray-400">
                         <span>ID: {comment.id}</span>
+                        <span>User ID: {comment.user_id}</span>
                         <span>Score: {(comment.upvotes || 0) - (comment.downvotes || 0)}</span>
                       </div>
                       <form action={deleteComment}>
