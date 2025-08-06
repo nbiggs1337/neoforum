@@ -63,34 +63,44 @@ async function getDashboardData(): Promise<DashboardData> {
 
   console.log("Dashboard: User authenticated:", user.id)
 
-  // Get user profile - create if doesn't exist
-  let { data: profile, error: profileError } = await supabase
+  // Get user profile
+  const { data: profile, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
     .single()
 
   if (profileError || !profile) {
-    console.log("Profile not found, creating one...")
-    
-    // Create profile if it doesn't exist
-    const { data: newProfile, error: createError } = await supabase
-      .from("profiles")
-      .insert({
-        id: user.id,
-        username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
-        display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split('@')[0] || 'User',
-        role: 'user'
-      })
-      .select()
-      .single()
-
-    if (createError) {
-      console.error("Failed to create profile:", createError)
-      redirect("/login")
+    console.error("Profile error:", profileError)
+    // Don't redirect, just use user metadata as fallback
+    const fallbackProfile = {
+      id: user.id,
+      username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+      display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split('@')[0] || 'User',
+      role: 'user',
+      avatar_url: null,
+      created_at: user.created_at || new Date().toISOString(),
     }
 
-    profile = newProfile
+    // Get user stats with fallback profile
+    const [postsResult, commentsResult, votesResult, forumsResult] = await Promise.all([
+      supabase.from("posts").select("id").eq("author_id", user.id),
+      supabase.from("comments").select("id").eq("author_id", user.id),
+      supabase.from("post_votes").select("id").eq("user_id", user.id).eq("vote_type", 1),
+      supabase.from("forum_members").select("forum_id").eq("user_id", user.id),
+    ])
+
+    return {
+      user: fallbackProfile,
+      stats: {
+        totalPosts: postsResult.data?.length || 0,
+        totalComments: commentsResult.data?.length || 0,
+        totalUpvotes: votesResult.data?.length || 0,
+        forumsJoined: forumsResult.data?.length || 0,
+      },
+      recentPosts: [],
+      joinedForums: [],
+    }
   }
 
   console.log("Dashboard: Profile loaded:", profile.username)

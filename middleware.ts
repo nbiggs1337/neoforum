@@ -25,49 +25,48 @@ export async function middleware(request: NextRequest) {
     },
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
   // Skip middleware for static files and API routes
   if (
     request.nextUrl.pathname.startsWith("/_next") ||
     request.nextUrl.pathname.startsWith("/api") ||
-    request.nextUrl.pathname.includes(".")
+    request.nextUrl.pathname.includes(".") ||
+    request.nextUrl.pathname === "/favicon.ico"
   ) {
     return supabaseResponse
   }
 
-  // Protected routes that require authentication
-  const protectedRoutes = ["/dashboard", "/admin", "/settings"]
-  const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+  try {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
 
-  // Auth routes that should redirect if already logged in
-  const authRoutes = ["/login", "/signup"]
-  const isAuthRoute = authRoutes.includes(request.nextUrl.pathname)
+    // Auth routes that should redirect if already logged in
+    const authRoutes = ["/login", "/signup"]
+    const isAuthRoute = authRoutes.includes(request.nextUrl.pathname)
 
-  // Public routes that don't need auth
-  const publicRoutes = ["/", "/privacy", "/terms", "/support", "/explore"]
-  const isPublicRoute = publicRoutes.some((route) => request.nextUrl.pathname === route)
+    // Protected routes that require authentication
+    const protectedRoutes = ["/dashboard", "/admin", "/settings"]
+    const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
-  // Forum routes are public but need special handling
-  const isForumRoute = request.nextUrl.pathname.startsWith("/forum")
+    if (isAuthRoute && user) {
+      // Redirect to dashboard if trying to access auth routes while logged in
+      const url = request.nextUrl.clone()
+      url.pathname = "/dashboard"
+      return NextResponse.redirect(url)
+    }
 
-  if (isProtectedRoute && !user) {
-    // Redirect to login if trying to access protected route without auth
-    const url = request.nextUrl.clone()
-    url.pathname = "/login"
-    return NextResponse.redirect(url)
+    if (isProtectedRoute && !user) {
+      // Redirect to login if trying to access protected route without auth
+      const url = request.nextUrl.clone()
+      url.pathname = "/login"
+      return NextResponse.redirect(url)
+    }
+
+    return supabaseResponse
+  } catch (error) {
+    console.error("Middleware error:", error)
+    return supabaseResponse
   }
-
-  if (isAuthRoute && user) {
-    // Redirect to dashboard if trying to access auth routes while logged in
-    const url = request.nextUrl.clone()
-    url.pathname = "/dashboard"
-    return NextResponse.redirect(url)
-  }
-
-  return supabaseResponse
 }
 
 export const config = {
