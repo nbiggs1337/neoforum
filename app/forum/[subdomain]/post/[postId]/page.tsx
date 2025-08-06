@@ -132,6 +132,36 @@ async function getUserVotes(postId: string, userId?: string) {
   }
 }
 
+async function incrementViewCount(postId: string) {
+  try {
+    const supabase = await createServerSupabaseClient()
+    
+    // Use a simple increment approach - if view_count doesn't exist, this will fail gracefully
+    const { error } = await supabase.rpc('increment_post_views', { post_id: postId })
+
+    if (error) {
+      console.error("View count increment error:", error)
+      // Fallback: try to update with a basic increment
+      const { error: fallbackError } = await supabase
+        .from("posts")
+        .update({ view_count: 1 })
+        .eq("id", postId)
+        .is("view_count", null)
+      
+      if (!fallbackError) {
+        // If that worked, try the normal increment for future views
+        await supabase
+          .from("posts")
+          .update({ view_count: 2 })
+          .eq("id", postId)
+          .eq("view_count", 1)
+      }
+    }
+  } catch (error) {
+    console.error("View count increment error:", error)
+  }
+}
+
 export default async function PostPage({ params }: PostPageProps) {
   const { subdomain, postId } = params
 
@@ -144,6 +174,9 @@ export default async function PostPage({ params }: PostPageProps) {
   if (!post) {
     notFound()
   }
+
+  // Increment view count
+  await incrementViewCount(postId)
 
   const userVotes = await getUserVotes(postId, currentUser?.id)
 
@@ -335,11 +368,11 @@ export default async function PostPage({ params }: PostPageProps) {
                         disabled={!currentUser}
                       />
 
-                      {/* Engagement Stats */}
-                      <div className="flex items-center space-x-4 text-sm text-gray-400">
+                      {/* Engagement Stats - Fixed mobile layout */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:space-x-4 space-y-2 sm:space-y-0 text-sm text-gray-400">
                         <div className="flex items-center space-x-1">
                           <Eye className="w-4 h-4" />
-                          <span>{(post.view_count || 0).toLocaleString()} views</span>
+                          <span>{((post.view_count || 0) + 1).toLocaleString()} views</span>
                         </div>
                         <div className="flex items-center space-x-1">
                           <MessageSquare className="w-4 h-4" />
@@ -422,7 +455,7 @@ export default async function PostPage({ params }: PostPageProps) {
               <CardContent className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Views</span>
-                  <span className="text-white font-semibold">{(post.view_count || 0).toLocaleString()}</span>
+                  <span className="text-white font-semibold">{((post.view_count || 0) + 1).toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Upvotes</span>
