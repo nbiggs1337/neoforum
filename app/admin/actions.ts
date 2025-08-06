@@ -348,7 +348,7 @@ export async function deleteForum(forumId: string) {
       throw new Error("Unauthorized")
     }
 
-    const { error } = await supabase.from("forums").update({ status: "deleted" }).eq("id", forumId)
+    const { error } = await supabase.from("forums").update({ status: "inactive" }).eq("id", forumId)
 
     if (error) throw error
 
