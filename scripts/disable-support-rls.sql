@@ -11,9 +11,9 @@ BEGIN
     FOR policy_record IN 
         SELECT policyname 
         FROM pg_policies 
-        WHERE tablename = 'support_messages' AND schemaname = 'public'
+        WHERE tablename = 'support_messages'
     LOOP
-        EXECUTE format('DROP POLICY IF EXISTS %I ON public.support_messages', policy_record.policyname);
+        EXECUTE 'DROP POLICY IF EXISTS ' || quote_ident(policy_record.policyname) || ' ON support_messages';
     END LOOP;
 END $$;
 
@@ -23,19 +23,9 @@ GRANT ALL ON public.support_messages TO authenticated;
 GRANT ALL ON public.support_messages TO public;
 
 -- Ensure sequence permissions for auto-incrementing ID
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO anon;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO public;
-
--- Specifically grant permissions on the support_messages sequence if it exists
-DO $$ 
-BEGIN
-    IF EXISTS (SELECT 1 FROM pg_class WHERE relname = 'support_messages_id_seq') THEN
-        GRANT USAGE, SELECT ON SEQUENCE public.support_messages_id_seq TO anon;
-        GRANT USAGE, SELECT ON SEQUENCE public.support_messages_id_seq TO authenticated;
-        GRANT USAGE, SELECT ON SEQUENCE public.support_messages_id_seq TO public;
-    END IF;
-END $$;
+GRANT USAGE, SELECT ON SEQUENCE public.support_messages_id_seq TO anon;
+GRANT USAGE, SELECT ON SEQUENCE public.support_messages_id_seq TO authenticated;
+GRANT USAGE, SELECT ON SEQUENCE public.support_messages_id_seq TO public;
 
 -- Ensure the table exists and has proper structure
 CREATE TABLE IF NOT EXISTS public.support_messages (
@@ -56,12 +46,53 @@ CREATE TABLE IF NOT EXISTS public.support_messages (
 );
 
 -- Ensure the table structure is correct
-ALTER TABLE public.support_messages 
-  ALTER COLUMN id SET DEFAULT nextval('public.support_messages_id_seq'),
-  ALTER COLUMN created_at SET DEFAULT now(),
-  ALTER COLUMN updated_at SET DEFAULT now(),
-  ALTER COLUMN status SET DEFAULT 'open',
-  ALTER COLUMN priority SET DEFAULT 'medium';
+DO $$
+BEGIN
+    -- Check if columns exist and add them if they don't
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'id') THEN
+        ALTER TABLE public.support_messages ADD COLUMN id SERIAL PRIMARY KEY;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'name') THEN
+        ALTER TABLE public.support_messages ADD COLUMN name TEXT NOT NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'email') THEN
+        ALTER TABLE public.support_messages ADD COLUMN email TEXT NOT NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'category') THEN
+        ALTER TABLE public.support_messages ADD COLUMN category TEXT NOT NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'subject') THEN
+        ALTER TABLE public.support_messages ADD COLUMN subject TEXT NOT NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'message') THEN
+        ALTER TABLE public.support_messages ADD COLUMN message TEXT NOT NULL;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'status') THEN
+        ALTER TABLE public.support_messages ADD COLUMN status TEXT DEFAULT 'open';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'priority') THEN
+        ALTER TABLE public.support_messages ADD COLUMN priority TEXT DEFAULT 'medium';
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'admin_notes') THEN
+        ALTER TABLE public.support_messages ADD COLUMN admin_notes TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'created_at') THEN
+        ALTER TABLE public.support_messages ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'support_messages' AND column_name = 'updated_at') THEN
+        ALTER TABLE public.support_messages ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+END $$;
 
 -- Create or replace the updated_at trigger
 CREATE OR REPLACE FUNCTION public.update_updated_at_column()

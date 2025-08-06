@@ -1,114 +1,72 @@
 'use server'
 
-import { createServerSupabaseClient } from "@/lib/supabase"
 import { redirect } from "next/navigation"
+import { createServerSupabaseClient } from "@/lib/supabase"
 
-export async function signUpAction(prevState: any, formData: FormData) {
-  console.log("signUpAction called")
-  
-  if (!formData) {
-    console.error("FormData is null or undefined")
-    return { error: "Form data is missing" }
+export async function signInAction(formData: FormData) {
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+
+  if (!email || !password) {
+    throw new Error('Email and password are required')
   }
 
-  try {
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-    const username = formData.get("username") as string
+  const supabase = await createServerSupabaseClient()
 
-    console.log("Signup attempt:", { email, username })
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
-    if (!email || !password || !username) {
-      return { error: "All fields are required" }
-    }
-
-    // Use regular client for signup to enable email confirmation
-    const supabase = await createServerSupabaseClient()
-
-    console.log("Creating user with email confirmation...")
-
-    // Create the user with email confirmation required
-    const { data: authData, error: authError } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          display_name: username,
-        },
-        emailRedirectTo: `https://neoforum.app/auth/callback`
-      }
-    })
-
-    if (authError) {
-      console.error("Auth error:", authError)
-      return { error: authError.message }
-    }
-
-    if (!authData.user) {
-      console.error("No user returned from auth")
-      return { error: "Failed to create user" }
-    }
-
-    console.log("User created successfully:", authData.user.id)
-    console.log("Email confirmation required:", !authData.user.email_confirmed_at)
-
-    // Profile will be created automatically via trigger after email confirmation
-    console.log("Signup completed successfully - email confirmation required")
-    
-    return { 
-      success: true, 
-      message: "Account created successfully! Please check your email to verify your account before signing in." 
-    }
-    
-  } catch (error) {
-    console.error("Signup error:", error)
-    return { error: "An unexpected error occurred during signup" }
+  if (error) {
+    console.error('Sign in error:', error)
+    throw new Error(error.message)
   }
+
+  redirect('/dashboard')
 }
 
-export async function signInAction(prevState: any, formData: FormData) {
-  console.log("signInAction called")
+export async function signUpAction(formData: FormData) {
+  const email = formData.get('email') as string
+  const password = formData.get('password') as string
+  const username = formData.get('username') as string
+  const displayName = formData.get('displayName') as string
+
+  if (!email || !password || !username) {
+    throw new Error('Email, password, and username are required')
+  }
+
+  const supabase = await createServerSupabaseClient()
+
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: `https://neoforum.app/auth/callback`,
+      data: {
+        username,
+        display_name: displayName || username,
+      },
+    },
+  })
+
+  if (error) {
+    console.error('Sign up error:', error)
+    throw new Error(error.message)
+  }
+
+  redirect('/login?message=Check your email to confirm your account')
+}
+
+export async function signOutAction() {
+  const supabase = await createServerSupabaseClient()
   
-  if (!formData) {
-    console.error("FormData is null or undefined")
-    return { error: "Form data is missing" }
+  const { error } = await supabase.auth.signOut()
+  
+  if (error) {
+    console.error('Sign out error:', error)
+    throw new Error(error.message)
   }
 
-  try {
-    const email = formData.get("email") as string
-    const password = formData.get("password") as string
-
-    console.log("Login attempt:", { email })
-
-    if (!email || !password) {
-      return { error: "Email and password are required" }
-    }
-
-    const supabase = await createServerSupabaseClient()
-
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    })
-
-    if (error) {
-      console.error("Login error:", error)
-      
-      // Check if it's an email not confirmed error
-      if (error.message.includes("Email not confirmed")) {
-        return { error: "Please check your email and click the confirmation link before signing in." }
-      }
-      
-      return { error: error.message }
-    }
-
-    console.log("Login successful")
-    
-  } catch (error) {
-    console.error("Login error:", error)
-    return { error: "An unexpected error occurred during login" }
-  }
-
-  redirect("/dashboard")
+  redirect('/')
 }

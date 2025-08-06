@@ -32,45 +32,50 @@ async function getCommentsData(searchQuery?: string) {
     redirect("/")
   }
 
-  // Build query for comments
-  let query = supabase
-    .from("comments")
-    .select(`
-      *,
-      users!comments_user_id_fkey(username, display_name, avatar_url),
-      posts!comments_post_id_fkey(
-        title,
-        id,
-        forums!posts_forum_id_fkey(name, subdomain)
-      )
-    `)
-    .order("created_at", { ascending: false })
+  // Build query for comments with better error handling
+  try {
+    let query = supabase
+      .from("comments")
+      .select(`
+        *,
+        profiles!comments_user_id_fkey(username, display_name, avatar_url),
+        posts!comments_post_id_fkey(
+          title,
+          id,
+          forums!posts_forum_id_fkey(name, subdomain)
+        )
+      `)
+      .order("created_at", { ascending: false })
 
-  // Apply search filter if provided
-  if (searchQuery) {
-    query = query.or(`content.ilike.%${searchQuery}%,users.username.ilike.%${searchQuery}%,users.display_name.ilike.%${searchQuery}%,posts.title.ilike.%${searchQuery}%`)
-  }
+    // Apply search filter if provided
+    if (searchQuery) {
+      query = query.or(`content.ilike.%${searchQuery}%,profiles.username.ilike.%${searchQuery}%,profiles.display_name.ilike.%${searchQuery}%,posts.title.ilike.%${searchQuery}%`)
+    }
 
-  const { data: comments, error } = await query.limit(100)
+    const { data: comments, error } = await query.limit(100)
 
-  if (error) {
-    console.error("Error fetching comments:", error)
+    if (error) {
+      console.error("Error fetching comments:", error)
+      return { comments: [], stats: { total: 0, authors: 0, upvotes: 0, forums: 0 } }
+    }
+
+    // Calculate statistics
+    const uniqueAuthors = new Set(comments?.map(c => c.user_id) || []).size
+    const totalUpvotes = comments?.reduce((sum, c) => sum + (c.upvotes || 0), 0) || 0
+    const uniqueForums = new Set(comments?.map(c => c.posts?.forums?.subdomain).filter(Boolean) || []).size
+
+    return {
+      comments: comments || [],
+      stats: {
+        total: comments?.length || 0,
+        authors: uniqueAuthors,
+        upvotes: totalUpvotes,
+        forums: uniqueForums,
+      },
+    }
+  } catch (error) {
+    console.error("Unexpected error fetching comments:", error)
     return { comments: [], stats: { total: 0, authors: 0, upvotes: 0, forums: 0 } }
-  }
-
-  // Calculate statistics
-  const uniqueAuthors = new Set(comments?.map(c => c.user_id) || []).size
-  const totalUpvotes = comments?.reduce((sum, c) => sum + (c.upvotes || 0), 0) || 0
-  const uniqueForums = new Set(comments?.map(c => c.posts?.forums?.subdomain).filter(Boolean) || []).size
-
-  return {
-    comments: comments || [],
-    stats: {
-      total: comments?.length || 0,
-      authors: uniqueAuthors,
-      upvotes: totalUpvotes,
-      forums: uniqueForums,
-    },
   }
 }
 
@@ -209,24 +214,24 @@ export default async function AdminCommentsPage({ searchParams }: AdminCommentsP
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex items-center space-x-3">
                         <div className="w-10 h-10 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-full flex items-center justify-center">
-                          {comment.users?.avatar_url ? (
+                          {comment.profiles?.avatar_url ? (
                             <img
-                              src={comment.users.avatar_url || "/placeholder.svg"}
-                              alt={comment.users.display_name || comment.users.username}
+                              src={comment.profiles.avatar_url || "/placeholder.svg"}
+                              alt={comment.profiles.display_name || comment.profiles.username}
                               className="w-10 h-10 rounded-full"
                             />
                           ) : (
                             <span className="text-black font-semibold">
-                              {(comment.users?.display_name || comment.users?.username || 'U')[0].toUpperCase()}
+                              {(comment.profiles?.display_name || comment.profiles?.username || 'U')[0].toUpperCase()}
                             </span>
                           )}
                         </div>
                         <div>
                           <p className="font-semibold text-white">
-                            {comment.users?.display_name || comment.users?.username || 'Unknown User'}
+                            {comment.profiles?.display_name || comment.profiles?.username || 'Unknown User'}
                           </p>
                           <p className="text-sm text-gray-400">
-                            @{comment.users?.username || 'unknown'} • {new Date(comment.created_at).toLocaleString()}
+                            @{comment.profiles?.username || 'unknown'} • {new Date(comment.created_at).toLocaleString()}
                           </p>
                         </div>
                       </div>
