@@ -308,10 +308,6 @@ export default async function PostPage({ params }: PostPageProps) {
                               src={imageUrl || "/placeholder.svg"}
                               alt={`Post image ${index + 1}`}
                               className="w-full h-64 object-cover rounded-lg border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300"
-                              onError={(e) => {
-                                const target = e.target as HTMLImageElement;
-                                target.style.display = 'none';
-                              }}
                             />
                             <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg"></div>
                           </div>
