@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { VoteButtons } from "@/components/vote-buttons"
 import { JoinForumButton } from "@/components/join-forum-button"
 import { FollowForumButton } from "@/components/follow-forum-button"
-import { Users, MessageSquare, Calendar, Plus, TrendingUp, Clock, Zap, ArrowLeft, Settings, Info } from 'lucide-react'
+import { Users, MessageSquare, Calendar, Plus, TrendingUp, Clock, Zap, ArrowLeft, Settings, Info, Image } from 'lucide-react'
 import Link from "next/link"
 import { formatDistanceToNow } from "date-fns"
 import { getCurrentUser } from "@/lib/auth"
@@ -87,6 +87,7 @@ async function getForumData(subdomain: string) {
         upvotes,
         downvotes,
         comment_count,
+        image_urls,
         created_at,
         updated_at,
         profiles!posts_author_id_fkey (
@@ -356,51 +357,89 @@ export default async function ForumPage({ params }: ForumPageProps) {
                         </CardContent>
                       </Card>
                     ) : (
-                      posts.map((post) => (
-                        <Card
-                          key={post.id}
-                          className="bg-black/60 border-purple-500/20 hover:border-cyan-400/40 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 group"
-                        >
-                          <CardContent className="p-6">
-                            <div className="flex gap-6">
-                              <VoteButtons
-                                postId={post.id}
-                                initialUpvotes={post.upvotes || 0}
-                                initialDownvotes={post.downvotes || 0}
-                                userVote={userVotes[post.id] || null}
-                              />
-                              <div className="flex-1">
-                                <Link href={`/forum/${forum.subdomain}/post/${post.id}`}>
-                                  <h3 className="text-xl font-bold text-white group-hover:text-cyan-400 transition-colors mb-3 leading-tight">
-                                    {post.title}
-                                  </h3>
-                                </Link>
-                                <p className="text-gray-300 mb-4 line-clamp-3 leading-relaxed">
-                                  {post.content.substring(0, 200)}
-                                  {post.content.length > 200 && "..."}
-                                </p>
-                                <div className="flex items-center gap-6 text-sm">
-                                  <Link
-                                    href={`/user/${post.profiles?.username || "unknown"}`}
-                                    className="text-purple-400 font-medium hover:text-purple-300 transition-colors"
-                                  >
-                                    by {post.profiles?.display_name || post.profiles?.username || "Unknown"}
-                                  </Link>
-                                  <div className="flex items-center gap-2 text-cyan-400">
-                                    <Calendar className="w-4 h-4" />
-                                    <span className="font-mono">{new Date(post.created_at).toLocaleDateString()}</span>
+                      posts.map((post) => {
+                        const hasImages = Array.isArray(post.image_urls) && post.image_urls.length > 0
+                        return (
+                          <Card
+                            key={post.id}
+                            className="bg-black/60 border-purple-500/20 hover:border-cyan-400/40 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 group"
+                          >
+                            <CardContent className="p-6">
+                              <div className="flex gap-6">
+                                <VoteButtons
+                                  postId={post.id}
+                                  initialUpvotes={post.upvotes || 0}
+                                  initialDownvotes={post.downvotes || 0}
+                                  userVote={userVotes[post.id] || null}
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Link href={`/forum/${forum.subdomain}/post/${post.id}`}>
+                                      <h3 className="text-xl font-bold text-white group-hover:text-cyan-400 transition-colors leading-tight">
+                                        {post.title}
+                                      </h3>
+                                    </Link>
+                                    {hasImages && (
+                                      <Badge className="bg-gradient-to-r from-purple-600 to-cyan-400 text-black text-xs px-2 py-1">
+                                        <Image className="w-3 h-3 mr-1" />
+                                        Photo Post
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2 text-gray-400">
-                                    <MessageSquare className="w-4 h-4" />
-                                    <span className="font-mono">{post.comment_count || 0}</span>
-                                    <span>comments</span>
+                                  
+                                  {hasImages && (
+                                    <div className="mb-4">
+                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {post.image_urls.slice(0, 3).map((imageUrl: string, index: number) => (
+                                          <div key={index} className="relative aspect-square">
+                                            <img
+                                              src={imageUrl || "/placeholder.svg"}
+                                              alt={`Post image ${index + 1}`}
+                                              className="w-full h-full object-cover rounded-lg border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
+                                              onError={(e) => {
+                                                e.currentTarget.style.display = 'none'
+                                              }}
+                                            />
+                                            {index === 2 && post.image_urls.length > 3 && (
+                                              <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
+                                                <span className="text-white font-bold text-lg">
+                                                  +{post.image_urls.length - 3}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <p className="text-gray-300 mb-4 line-clamp-3 leading-relaxed">
+                                    {post.content.substring(0, 200)}
+                                    {post.content.length > 200 && "..."}
+                                  </p>
+                                  <div className="flex items-center gap-6 text-sm">
+                                    <Link
+                                      href={`/user/${post.profiles?.username || "unknown"}`}
+                                      className="text-purple-400 font-medium hover:text-purple-300 transition-colors"
+                                    >
+                                      by {post.profiles?.display_name || post.profiles?.username || "Unknown"}
+                                    </Link>
+                                    <div className="flex items-center gap-2 text-cyan-400">
+                                      <Calendar className="w-4 h-4" />
+                                      <span className="font-mono">{new Date(post.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gray-400">
+                                      <MessageSquare className="w-4 h-4" />
+                                      <span className="font-mono">{post.comment_count || 0}</span>
+                                      <span>comments</span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))
+                            </CardContent>
+                          </Card>
+                        )
+                      })
                     )}
                   </TabsContent>
 
@@ -429,51 +468,89 @@ export default async function ForumPage({ params }: ForumPageProps) {
                         </CardContent>
                       </Card>
                     ) : (
-                      hotPosts.map((post) => (
-                        <Card
-                          key={post.id}
-                          className="bg-black/60 border-purple-500/20 hover:border-cyan-400/40 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 group"
-                        >
-                          <CardContent className="p-6">
-                            <div className="flex gap-6">
-                              <VoteButtons
-                                postId={post.id}
-                                initialUpvotes={post.upvotes || 0}
-                                initialDownvotes={post.downvotes || 0}
-                                userVote={userVotes[post.id] || null}
-                              />
-                              <div className="flex-1">
-                                <Link href={`/forum/${forum.subdomain}/post/${post.id}`}>
-                                  <h3 className="text-xl font-bold text-white group-hover:text-cyan-400 transition-colors mb-3 leading-tight">
-                                    {post.title}
-                                  </h3>
-                                </Link>
-                                <p className="text-gray-300 mb-4 line-clamp-3 leading-relaxed">
-                                  {post.content.substring(0, 200)}
-                                  {post.content.length > 200 && "..."}
-                                </p>
-                                <div className="flex items-center gap-6 text-sm">
-                                  <Link
-                                    href={`/user/${post.profiles?.username || "unknown"}`}
-                                    className="text-purple-400 font-medium hover:text-purple-300 transition-colors"
-                                  >
-                                    by {post.profiles?.display_name || post.profiles?.username || "Unknown"}
-                                  </Link>
-                                  <div className="flex items-center gap-2 text-cyan-400">
-                                    <Calendar className="w-4 h-4" />
-                                    <span className="font-mono">{new Date(post.created_at).toLocaleDateString()}</span>
+                      hotPosts.map((post) => {
+                        const hasImages = Array.isArray(post.image_urls) && post.image_urls.length > 0
+                        return (
+                          <Card
+                            key={post.id}
+                            className="bg-black/60 border-purple-500/20 hover:border-cyan-400/40 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/10 group"
+                          >
+                            <CardContent className="p-6">
+                              <div className="flex gap-6">
+                                <VoteButtons
+                                  postId={post.id}
+                                  initialUpvotes={post.upvotes || 0}
+                                  initialDownvotes={post.downvotes || 0}
+                                  userVote={userVotes[post.id] || null}
+                                />
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-2">
+                                    <Link href={`/forum/${forum.subdomain}/post/${post.id}`}>
+                                      <h3 className="text-xl font-bold text-white group-hover:text-cyan-400 transition-colors leading-tight">
+                                        {post.title}
+                                      </h3>
+                                    </Link>
+                                    {hasImages && (
+                                      <Badge className="bg-gradient-to-r from-purple-600 to-cyan-400 text-black text-xs px-2 py-1">
+                                        <Image className="w-3 h-3 mr-1" />
+                                        Photo Post
+                                      </Badge>
+                                    )}
                                   </div>
-                                  <div className="flex items-center gap-2 text-gray-400">
-                                    <MessageSquare className="w-4 h-4" />
-                                    <span className="font-mono">{post.comment_count || 0}</span>
-                                    <span>comments</span>
+                                  
+                                  {hasImages && (
+                                    <div className="mb-4">
+                                      <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                        {post.image_urls.slice(0, 3).map((imageUrl: string, index: number) => (
+                                          <div key={index} className="relative aspect-square">
+                                            <img
+                                              src={imageUrl || "/placeholder.svg"}
+                                              alt={`Post image ${index + 1}`}
+                                              className="w-full h-full object-cover rounded-lg border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
+                                              onError={(e) => {
+                                                e.currentTarget.style.display = 'none'
+                                              }}
+                                            />
+                                            {index === 2 && post.image_urls.length > 3 && (
+                                              <div className="absolute inset-0 bg-black/60 rounded-lg flex items-center justify-center">
+                                                <span className="text-white font-bold text-lg">
+                                                  +{post.image_urls.length - 3}
+                                                </span>
+                                              </div>
+                                            )}
+                                          </div>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  <p className="text-gray-300 mb-4 line-clamp-3 leading-relaxed">
+                                    {post.content.substring(0, 200)}
+                                    {post.content.length > 200 && "..."}
+                                  </p>
+                                  <div className="flex items-center gap-6 text-sm">
+                                    <Link
+                                      href={`/user/${post.profiles?.username || "unknown"}`}
+                                      className="text-purple-400 font-medium hover:text-purple-300 transition-colors"
+                                    >
+                                      by {post.profiles?.display_name || post.profiles?.username || "Unknown"}
+                                    </Link>
+                                    <div className="flex items-center gap-2 text-cyan-400">
+                                      <Calendar className="w-4 h-4" />
+                                      <span className="font-mono">{new Date(post.created_at).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-gray-400">
+                                      <MessageSquare className="w-4 h-4" />
+                                      <span className="font-mono">{post.comment_count || 0}</span>
+                                      <span>comments</span>
+                                    </div>
                                   </div>
                                 </div>
                               </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))
+                            </CardContent>
+                          </Card>
+                        )
+                      })
                     )}
                   </TabsContent>
                 </Tabs>

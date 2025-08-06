@@ -6,18 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
-import {
-  ArrowLeft,
-  Search,
-  Trash2,
-  RotateCcw,
-  ThumbsUp,
-  ThumbsDown,
-  Calendar,
-  User,
-  Globe,
-  AlertTriangle,
-} from "lucide-react"
+import { ArrowLeft, Search, Trash2, RotateCcw, ThumbsUp, ThumbsDown, Calendar, User, Globe, AlertTriangle, ImageIcon } from 'lucide-react'
 import { getDeletedPosts, restorePost, permanentlyDeletePost } from "./actions"
 
 interface DeletedPost {
@@ -31,6 +20,7 @@ interface DeletedPost {
   downvotes: number
   created_at: string
   updated_at: string
+  image_urls: string[] | null
 }
 
 export default function AdminDeletedPage() {
@@ -184,75 +174,110 @@ export default function AdminDeletedPage() {
 
         {/* Deleted Posts List */}
         <div className="space-y-4">
-          {filteredPosts.map((post) => (
-            <Card key={post.id} className="bg-black/50 border-red-500/30 backdrop-blur-sm">
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <h3 className="text-lg font-semibold text-white line-clamp-1">{post.title}</h3>
-                      <Badge variant="outline" className="border-red-500/50 text-red-400">
-                        DELETED
-                      </Badge>
-                    </div>
+          {filteredPosts.map((post) => {
+            const hasImages = Array.isArray(post.image_urls) && post.image_urls.length > 0
+            const displayImages = hasImages ? post.image_urls.slice(0, 3) : []
+            const remainingImages = hasImages ? Math.max(0, post.image_urls.length - 3) : 0
 
-                    <p className="text-gray-400 text-sm mb-3 line-clamp-2">{post.content}</p>
+            return (
+              <Card key={post.id} className="bg-black/50 border-red-500/30 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <h3 className="text-lg font-semibold text-white line-clamp-1">{post.title}</h3>
+                        <Badge variant="outline" className="border-red-500/50 text-red-400">
+                          DELETED
+                        </Badge>
+                        {hasImages && (
+                          <Badge variant="outline" className="border-purple-500/50 text-purple-400">
+                            <ImageIcon className="w-3 h-3 mr-1" />
+                            Photo Post
+                          </Badge>
+                        )}
+                      </div>
 
-                    <div className="flex items-center space-x-6 text-xs text-gray-500">
-                      <div className="flex items-center space-x-1">
-                        <User className="w-3 h-3" />
-                        <span>{post.author_username}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Globe className="w-3 h-3" />
-                        <span>{post.forum_name}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>Created: {new Date(post.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>Deleted: {new Date(post.updated_at).toLocaleDateString()}</span>
-                      </div>
-                      <div className="flex items-center space-x-3">
+                      {/* Image Preview Grid */}
+                      {hasImages && (
+                        <div className="grid grid-cols-3 gap-2 mb-3 max-w-md">
+                          {displayImages.map((imageUrl, index) => (
+                            <div key={index} className="relative aspect-square">
+                              <img
+                                src={imageUrl || "/placeholder.svg"}
+                                alt={`Post image ${index + 1}`}
+                                className="w-full h-full object-cover rounded border border-purple-500/30 hover:border-purple-400/60 transition-colors"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none'
+                                }}
+                              />
+                              {index === 2 && remainingImages > 0 && (
+                                <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
+                                  <span className="text-white text-sm font-semibold">+{remainingImages}</span>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <p className="text-gray-400 text-sm mb-3 line-clamp-2">{post.content}</p>
+
+                      <div className="flex items-center space-x-6 text-xs text-gray-500">
                         <div className="flex items-center space-x-1">
-                          <ThumbsUp className="w-3 h-3 text-green-400" />
-                          <span>{post.upvotes}</span>
+                          <User className="w-3 h-3" />
+                          <span>{post.author_username}</span>
                         </div>
                         <div className="flex items-center space-x-1">
-                          <ThumbsDown className="w-3 h-3 text-red-400" />
-                          <span>{post.downvotes}</span>
+                          <Globe className="w-3 h-3" />
+                          <span>{post.forum_name}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>Created: {new Date(post.created_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <Calendar className="w-3 h-3" />
+                          <span>Deleted: {new Date(post.updated_at).toLocaleDateString()}</span>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <div className="flex items-center space-x-1">
+                            <ThumbsUp className="w-3 h-3 text-green-400" />
+                            <span>{post.upvotes}</span>
+                          </div>
+                          <div className="flex items-center space-x-1">
+                            <ThumbsDown className="w-3 h-3 text-red-400" />
+                            <span>{post.downvotes}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex items-center space-x-2 ml-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-green-600 text-green-300 hover:bg-green-800 bg-transparent"
-                      onClick={() => handleRestorePost(post.id)}
-                    >
-                      <RotateCcw className="w-4 h-4 mr-1" />
-                      Restore
-                    </Button>
+                    <div className="flex items-center space-x-2 ml-4">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-green-600 text-green-300 hover:bg-green-800 bg-transparent"
+                        onClick={() => handleRestorePost(post.id)}
+                      >
+                        <RotateCcw className="w-4 h-4 mr-1" />
+                        Restore
+                      </Button>
 
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="border-red-600 text-red-300 hover:bg-red-800 bg-transparent"
-                      onClick={() => handlePermanentlyDeletePost(post.id)}
-                    >
-                      <Trash2 className="w-4 h-4 mr-1" />
-                      Delete Forever
-                    </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-red-600 text-red-300 hover:bg-red-800 bg-transparent"
+                        onClick={() => handlePermanentlyDeletePost(post.id)}
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        Delete Forever
+                      </Button>
+                    </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardContent>
+              </Card>
+            )
+          })}
 
           {filteredPosts.length === 0 && (
             <Card className="bg-black/50 border-red-500/30 backdrop-blur-sm">

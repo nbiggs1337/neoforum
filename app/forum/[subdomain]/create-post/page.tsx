@@ -1,13 +1,10 @@
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { notFound, redirect } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft } from 'lucide-react'
 import Link from "next/link"
 import { revalidatePath } from "next/cache"
+import { CreatePostForm } from "@/components/create-post-form"
 
 interface CreatePostPageProps {
   params: {
@@ -23,11 +20,15 @@ async function createPost(formData: FormData) {
     const subdomain = formData.get("subdomain") as string
     const title = formData.get("title") as string
     const content = formData.get("content") as string
+    const postType = formData.get("postType") as string
+    const imageUrls = formData.get("imageUrls") as string
 
     console.log("Creating post with data:", {
       subdomain,
       title: title?.substring(0, 50),
       content: content?.substring(0, 50),
+      postType,
+      imageUrls: imageUrls?.substring(0, 100),
     })
 
     // Get current user
@@ -38,12 +39,12 @@ async function createPost(formData: FormData) {
 
     if (userError) {
       console.error("User error:", userError)
-      throw new Error("Authentication error")
+      return { error: "Authentication error" }
     }
 
     if (!user) {
       console.error("No user found")
-      throw new Error("Authentication required")
+      return { error: "Authentication required" }
     }
 
     console.log("User authenticated:", user.id)
@@ -57,12 +58,12 @@ async function createPost(formData: FormData) {
 
     if (forumError) {
       console.error("Forum error:", forumError)
-      throw new Error("Forum not found")
+      return { error: "Forum not found" }
     }
 
     if (!forum) {
       console.error("No forum found for subdomain:", subdomain)
-      throw new Error("Forum not found")
+      return { error: "Forum not found" }
     }
 
     console.log("Forum found:", forum.id, forum.name)
@@ -86,38 +87,51 @@ async function createPost(formData: FormData) {
 
       if (joinError) {
         console.error("Auto-join error:", joinError)
-        throw new Error("Failed to join forum")
+        return { error: "Failed to join forum" }
       }
       console.log("User auto-joined to forum")
     } else {
       console.log("User is already a member")
     }
 
+    // Prepare post data
+    const postData: any = {
+      title,
+      content,
+      author_id: user.id,
+      forum_id: forum.id,
+      status: "published",
+      upvotes: 0,
+      downvotes: 0,
+      comment_count: 0,
+    }
+
+    // Add image URLs if it's a photo post
+    if (postType === "photo" && imageUrls) {
+      try {
+        postData.image_urls = JSON.parse(imageUrls)
+      } catch (error) {
+        console.error("Error parsing image URLs:", error)
+        return { error: "Invalid image data" }
+      }
+    }
+
     // Create the post
     console.log("Creating post...")
     const { data: post, error: postError } = await supabase
       .from("posts")
-      .insert({
-        title,
-        content,
-        author_id: user.id,
-        forum_id: forum.id,
-        status: "published",
-        upvotes: 0,
-        downvotes: 0,
-        comment_count: 0,
-      })
+      .insert(postData)
       .select("id")
       .single()
 
     if (postError) {
       console.error("Create post error:", postError)
-      throw new Error(`Failed to create post: ${postError.message}`)
+      return { error: `Failed to create post: ${postError.message}` }
     }
 
     if (!post) {
       console.error("No post returned after creation")
-      throw new Error("Failed to create post")
+      return { error: "Failed to create post" }
     }
 
     console.log("Post created successfully:", post.id)
@@ -141,14 +155,15 @@ async function createPost(formData: FormData) {
     // Revalidate the forum page
     revalidatePath(`/forum/${subdomain}`)
 
-    // Redirect to the forum page
-    redirect(`/forum/${subdomain}`)
-  } catch (error) {
-    if (error instanceof Error && error.message === "NEXT_REDIRECT") {
-      throw error // Allow redirect to work
+    // Return success with redirect URL instead of using redirect()
+    return { 
+      success: true, 
+      redirectTo: `/forum/${subdomain}`,
+      postId: post.id 
     }
+  } catch (error) {
     console.error("Create post error:", error)
-    throw new Error(`Failed to create post: ${error instanceof Error ? error.message : "Unknown error"}`)
+    return { error: `Failed to create post: ${error instanceof Error ? error.message : "Unknown error"}` }
   }
 }
 
@@ -213,54 +228,7 @@ export default async function CreatePostPage({ params }: CreatePostPageProps) {
               <CardTitle className="text-xl font-semibold text-purple-300">New Post</CardTitle>
             </CardHeader>
             <CardContent>
-              <form action={createPost} className="space-y-6">
-                <input type="hidden" name="subdomain" value={subdomain} />
-
-                <div className="space-y-2">
-                  <Label htmlFor="title" className="text-gray-300">
-                    Title
-                  </Label>
-                  <Input
-                    id="title"
-                    name="title"
-                    placeholder="Enter your post title..."
-                    required
-                    className="bg-gray-900/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="content" className="text-gray-300">
-                    Content
-                  </Label>
-                  <Textarea
-                    id="content"
-                    name="content"
-                    placeholder="What's on your mind?"
-                    required
-                    rows={12}
-                    className="bg-gray-900/50 border-gray-600 text-white placeholder-gray-400 focus:border-purple-500 resize-none"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between pt-4">
-                  <Link href={`/forum/${subdomain}`}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      className="border-gray-600 text-gray-300 hover:bg-gray-800 bg-transparent"
-                    >
-                      Cancel
-                    </Button>
-                  </Link>
-                  <Button
-                    type="submit"
-                    className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-white"
-                  >
-                    Create Post
-                  </Button>
-                </div>
-              </form>
+              <CreatePostForm subdomain={subdomain} createPostAction={createPost} />
             </CardContent>
           </Card>
         </div>

@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Users, MessageSquare, Settings, User, LogOut, Eye, ThumbsUp, Calendar } from 'lucide-react'
+import { Zap, Users, MessageSquare, Settings, User, LogOut, Eye, ThumbsUp, Calendar, Image } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { CreateForumForm } from "@/components/create-forum-form"
 
@@ -29,6 +29,7 @@ interface DashboardData {
     upvotes: number
     downvotes: number
     comment_count: number
+    image_urls?: string[]
     created_at: string
     author: {
       username: string
@@ -106,6 +107,7 @@ async function getDashboardData(): Promise<DashboardData> {
       upvotes,
       downvotes,
       comment_count,
+      image_urls,
       created_at,
       author_id,
       forum_id
@@ -320,44 +322,82 @@ export default async function DashboardPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {data.recentPosts.length > 0 ? (
-                  data.recentPosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="border border-gray-700 rounded-lg p-4 hover:border-purple-500/50 transition-colors"
-                    >
-                      <Link href={`/forum/${post.forum.subdomain}/post/${post.id}`}>
-                        <h3 className="font-semibold text-white hover:text-purple-300 transition-colors mb-2">
-                          {post.title}
-                        </h3>
-                      </Link>
-                      <p className="text-gray-400 text-sm mb-3 line-clamp-2">{post.content}</p>
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center space-x-2">
-                          <Link href={`/forum/${post.forum.subdomain}`} className="text-purple-400 hover:text-purple-300">
-                            f/{post.forum.subdomain}
+                  data.recentPosts.map((post) => {
+                    const hasImages = Array.isArray(post.image_urls) && post.image_urls.length > 0
+                    return (
+                      <div
+                        key={post.id}
+                        className="border border-gray-700 rounded-lg p-4 hover:border-purple-500/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2 mb-2">
+                          <Link href={`/forum/${post.forum.subdomain}/post/${post.id}`}>
+                            <h3 className="font-semibold text-white hover:text-purple-300 transition-colors">
+                              {post.title}
+                            </h3>
                           </Link>
-                          <span className="text-gray-500">•</span>
-                          <Link href={`/user/${post.author.username}`} className="text-cyan-400 hover:text-cyan-300">
-                            u/{post.author.username}
-                          </Link>
+                          {hasImages && (
+                            <Badge className="bg-gradient-to-r from-purple-600 to-cyan-400 text-black text-xs px-2 py-1">
+                              <Image className="w-3 h-3 mr-1" />
+                              Photo
+                            </Badge>
+                          )}
                         </div>
-                        <div className="flex items-center space-x-4 text-gray-500">
-                          <span className="flex items-center">
-                            <ThumbsUp className="w-4 h-4 mr-1" />
-                            {post.upvotes - post.downvotes}
-                          </span>
-                          <span className="flex items-center">
-                            <MessageSquare className="w-4 h-4 mr-1" />
-                            {post.comment_count}
-                          </span>
-                          <span className="flex items-center">
-                            <Calendar className="w-4 h-4 mr-1" />
-                            {new Date(post.created_at).toLocaleDateString()}
-                          </span>
+                        
+                        {hasImages && (
+                          <div className="mb-3">
+                            <div className="grid grid-cols-3 gap-1">
+                              {post.image_urls!.slice(0, 3).map((imageUrl: string, index: number) => (
+                                <div key={index} className="relative aspect-square">
+                                  <img
+                                    src={imageUrl || "/placeholder.svg"}
+                                    alt={`Post image ${index + 1}`}
+                                    className="w-full h-full object-cover rounded border border-purple-500/30"
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = 'none'
+                                    }}
+                                  />
+                                  {index === 2 && post.image_urls!.length > 3 && (
+                                    <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
+                                      <span className="text-white font-bold text-sm">
+                                        +{post.image_urls!.length - 3}
+                                      </span>
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        <p className="text-gray-400 text-sm mb-3 line-clamp-2">{post.content}</p>
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center space-x-2">
+                            <Link href={`/forum/${post.forum.subdomain}`} className="text-purple-400 hover:text-purple-300">
+                              f/{post.forum.subdomain}
+                            </Link>
+                            <span className="text-gray-500">•</span>
+                            <Link href={`/user/${post.author.username}`} className="text-cyan-400 hover:text-cyan-300">
+                              u/{post.author.username}
+                            </Link>
+                          </div>
+                          <div className="flex items-center space-x-4 text-gray-500">
+                            <span className="flex items-center">
+                              <ThumbsUp className="w-4 h-4 mr-1" />
+                              {post.upvotes - post.downvotes}
+                            </span>
+                            <span className="flex items-center">
+                              <MessageSquare className="w-4 h-4 mr-1" />
+                              {post.comment_count}
+                            </span>
+                            <span className="flex items-center">
+                              <Calendar className="w-4 h-4 mr-1" />
+                              {new Date(post.created_at).toLocaleDateString()}
+                            </span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))
+                    )
+                  })
                 ) : (
                   <div className="text-center py-8">
                     <MessageSquare className="w-12 h-12 text-gray-600 mx-auto mb-4" />

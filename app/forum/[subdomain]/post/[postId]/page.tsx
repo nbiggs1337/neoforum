@@ -9,21 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
 import { VoteButtons } from "@/components/vote-buttons"
 import { CommentSection } from "@/components/comment-section"
-import {
-  Zap,
-  ArrowLeft,
-  MessageSquare,
-  Share2,
-  Flag,
-  Bookmark,
-  Clock,
-  Eye,
-  Edit,
-  Pin,
-  Lock,
-  Calendar,
-  TrendingUp,
-} from "lucide-react"
+import { Zap, ArrowLeft, MessageSquare, Share2, Flag, Bookmark, Clock, Eye, Edit, Pin, Lock, Calendar, TrendingUp } from 'lucide-react'
 
 interface PostPageProps {
   params: {
@@ -180,6 +166,9 @@ export default async function PostPage({ params }: PostPageProps) {
       .slice(0, 2)
   }
 
+  // Check if post has images
+  const hasImages = post.image_urls && Array.isArray(post.image_urls) && post.image_urls.length > 0
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Cyberpunk background */}
@@ -270,6 +259,11 @@ export default async function PostPage({ params }: PostPageProps) {
                           <TrendingUp className="w-3 h-3 mr-1" />
                           {(post.upvotes || 0) - (post.downvotes || 0)} score
                         </Badge>
+                        {hasImages && (
+                          <Badge variant="outline" className="border-green-500/50 text-green-400 text-xs">
+                            Photo Post
+                          </Badge>
+                        )}
                       </div>
                       <h1 className="text-3xl font-bold text-white mb-4 leading-tight">{post.title}</h1>
                       <div className="flex items-center space-x-4 text-sm text-gray-400">
@@ -304,6 +298,29 @@ export default async function PostPage({ params }: PostPageProps) {
 
                 {/* Post Content */}
                 <div className="p-6">
+                  {/* Render images if they exist */}
+                  {hasImages && (
+                    <div className="mb-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {post.image_urls.map((imageUrl: string, index: number) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={imageUrl || "/placeholder.svg"}
+                              alt={`Post image ${index + 1}`}
+                              className="w-full h-64 object-cover rounded-lg border border-purple-500/20 hover:border-purple-500/50 transition-all duration-300"
+                              onError={(e) => {
+                                const target = e.target as HTMLImageElement;
+                                target.style.display = 'none';
+                              }}
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg"></div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Text content */}
                   <div className="prose prose-invert max-w-none">
                     <div className="text-gray-300 leading-relaxed whitespace-pre-line text-base">{post.content}</div>
                   </div>
@@ -423,6 +440,12 @@ export default async function PostPage({ params }: PostPageProps) {
                   <span className="text-gray-400">Comments</span>
                   <span className="text-white font-semibold">{comments.length}</span>
                 </div>
+                {hasImages && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-gray-400">Images</span>
+                    <span className="text-green-400 font-semibold">{post.image_urls.length}</span>
+                  </div>
+                )}
                 <Separator className="bg-gray-800" />
                 <div className="flex justify-between items-center">
                   <span className="text-gray-400">Net Score</span>
