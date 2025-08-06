@@ -396,9 +396,6 @@ export default async function ForumPage({ params }: ForumPageProps) {
                                               src={imageUrl || "/placeholder.svg"}
                                               alt={`Post image ${index + 1}`}
                                               className="w-full h-full object-cover rounded border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
-                                              onError={(e) => {
-                                                e.currentTarget.style.display = 'none'
-                                              }}
                                             />
                                             {index === 2 && post.image_urls.length > 3 && (
                                               <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
@@ -507,9 +504,6 @@ export default async function ForumPage({ params }: ForumPageProps) {
                                               src={imageUrl || "/placeholder.svg"}
                                               alt={`Post image ${index + 1}`}
                                               className="w-full h-full object-cover rounded border border-purple-500/30 hover:border-cyan-400/50 transition-colors"
-                                              onError={(e) => {
-                                                e.currentTarget.style.display = 'none'
-                                              }}
                                             />
                                             {index === 2 && post.image_urls.length > 3 && (
                                               <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">

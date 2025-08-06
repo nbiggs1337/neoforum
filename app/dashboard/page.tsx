@@ -352,9 +352,6 @@ export default async function DashboardPage() {
                                     src={imageUrl || "/placeholder.svg"}
                                     alt={`Post image ${index + 1}`}
                                     className="w-full h-full object-cover rounded border border-purple-500/30"
-                                    onError={(e) => {
-                                      e.currentTarget.style.display = 'none'
-                                    }}
                                   />
                                   {index === 2 && post.image_urls!.length > 3 && (
                                     <div className="absolute inset-0 bg-black/60 rounded flex items-center justify-center">
@@ -485,7 +482,7 @@ export default async function DashboardPage() {
                       <Settings className="w-4 h-4 mr-2" />
                       Account Settings
                     </Button>
-                  </Link>
+                    </Link>
                 </div>
               </CardContent>
             </Card>
