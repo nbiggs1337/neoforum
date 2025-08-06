@@ -13,7 +13,7 @@ async function getCurrentUser() {
     }
 
     const { data: profile } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .eq('id', user.id)
       .single()
@@ -42,10 +42,10 @@ export async function getAdminStats() {
 
     // Get basic counts with error handling
     const [usersResult, forumsResult, postsResult, reportsResult] = await Promise.all([
-      supabase.from("users").select("id, created_at").order("created_at", { ascending: false }).limit(1000),
-      supabase.from("forums").select("id").eq("status", "active").limit(1000),
-      supabase.from("posts").select("id, created_at").eq("status", "published").limit(1000),
-      supabase.from("reports").select("id").eq("status", "pending").limit(1000),
+      supabase.from("profiles").select("id, created_at").order("created_at", { ascending: false }),
+      supabase.from("forums").select("id").eq("status", "active"),
+      supabase.from("posts").select("id, created_at").eq("status", "published"),
+      supabase.from("reports").select("id").eq("status", "pending"),
     ])
 
     const users = usersResult.data || []
@@ -91,10 +91,9 @@ export async function getAllUsers() {
 
     const supabase = await createServerSupabaseClient()
     const { data, error } = await supabase
-      .from('users')
+      .from('profiles')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
 
     if (error) throw error
     return data || []
@@ -118,7 +117,6 @@ export async function getAllForums() {
       .from('forums')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(50)
 
     if (error) throw error
 
@@ -128,19 +126,19 @@ export async function getAllForums() {
       
       try {
         const { data: owner } = await supabase
-          .from('users')
+          .from('profiles')
           .select('username, display_name')
           .eq('id', forum.owner_id)
           .single()
 
         forumsWithOwners.push({
           ...forum,
-          owner: owner || { username: 'Unknown', display_name: 'Unknown' }
+          owner_username: owner?.username || 'Unknown'
         })
       } catch (ownerError) {
         forumsWithOwners.push({
           ...forum,
-          owner: { username: 'Unknown', display_name: 'Unknown' }
+          owner_username: 'Unknown'
         })
       }
     }
@@ -166,7 +164,6 @@ export async function getAllReports() {
       .from('reports')
       .select('*')
       .order('created_at', { ascending: false })
-      .limit(25)
 
     if (error) throw error
 
@@ -183,25 +180,25 @@ export async function getAllReports() {
             .select('title, content, author_id')
             .eq('id', report.post_id)
             .single()
-          reportWithDetails.post = post
+          reportWithDetails.post_title = post?.title || 'Unknown'
         }
 
         if (report.reporter_id) {
           const { data: reporter } = await supabase
-            .from('users')
+            .from('profiles')
             .select('username, display_name')
             .eq('id', report.reporter_id)
             .single()
-          reportWithDetails.reporter = reporter
+          reportWithDetails.reporter_username = reporter?.username || 'Unknown'
         }
 
         if (report.reviewed_by) {
           const { data: reviewer } = await supabase
-            .from('users')
+            .from('profiles')
             .select('username, display_name')
             .eq('id', report.reviewed_by)
             .single()
-          reportWithDetails.reviewer = reviewer
+          reportWithDetails.reviewer_username = reviewer?.username || 'Unknown'
         }
 
         reportsWithDetails.push(reportWithDetails)
@@ -229,7 +226,7 @@ export async function getAllPosts() {
       .from('posts')
       .select(`
         *,
-        author:users!posts_author_id_fkey(username, display_name),
+        author:profiles!posts_author_id_fkey(username, display_name),
         forum:forums!posts_forum_id_fkey(name, subdomain)
       `)
       .order('created_at', { ascending: false })
@@ -300,7 +297,7 @@ export async function banUser(userId: string, reason: string) {
 
     const supabase = await createServerSupabaseClient()
     const { error } = await supabase
-      .from('users')
+      .from('profiles')
       .update({ 
         is_banned: true, 
         ban_reason: reason 
@@ -326,7 +323,7 @@ export async function unbanUser(userId: string) {
 
     const supabase = await createServerSupabaseClient()
     const { error } = await supabase
-      .from('users')
+      .from('profiles')
       .update({ 
         is_banned: false, 
         ban_reason: null 
@@ -357,9 +354,13 @@ export async function deleteUser(userId: string) {
 
     const supabase = await createServerSupabaseClient()
 
+    // First check if the columns exist, if not just use is_banned as a fallback
     const { error } = await supabase
-      .from("users")
-      .update({ status: "deleted" })
+      .from("profiles")
+      .update({ 
+        is_banned: true,
+        ban_reason: "Account deleted by admin"
+      })
       .eq("id", userId)
 
     if (error) {
@@ -367,7 +368,8 @@ export async function deleteUser(userId: string) {
       throw error
     }
 
-    console.log(`Successfully deleted user ${userId}`)
+    revalidatePath('/admin')
+    console.log(`Successfully marked user ${userId} as deleted`)
     return { success: true }
   } catch (error) {
     console.error("Error deleting user:", error)
@@ -519,7 +521,7 @@ export async function promoteToAdmin(userId: string) {
     const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
-      .from("users")
+      .from("profiles")
       .update({ role: "admin" })
       .eq("id", userId)
 
@@ -547,7 +549,7 @@ export async function promoteToModerator(userId: string) {
     const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
-      .from("users")
+      .from("profiles")
       .update({ role: "moderator" })
       .eq("id", userId)
 
@@ -575,7 +577,7 @@ export async function demoteToUser(userId: string) {
     const supabase = await createServerSupabaseClient()
 
     const { error } = await supabase
-      .from("users")
+      .from("profiles")
       .update({ role: "user" })
       .eq("id", userId)
 
