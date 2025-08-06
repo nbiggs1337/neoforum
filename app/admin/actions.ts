@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { revalidatePath } from 'next/cache'
+import { requireAuth } from '@/lib/auth'
 
 async function getCurrentUser() {
   try {
@@ -342,17 +343,19 @@ export async function unbanUser(userId: string) {
 
 export async function deleteUser(userId: string) {
   try {
-    const user = await getCurrentUser()
-    
-    if (!user) {
-      throw new Error("Authentication required")
-    }
+    const user = await requireAuth()
+    const supabase = await createServerSupabaseClient()
 
-    if (user.role !== "admin") {
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || profile?.role !== "admin") {
       throw new Error("Unauthorized")
     }
-
-    const supabase = await createServerSupabaseClient()
 
     // First check if the columns exist, if not just use is_banned as a fallback
     const { error } = await supabase
