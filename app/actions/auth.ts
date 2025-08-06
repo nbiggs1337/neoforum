@@ -37,7 +37,7 @@ export async function signUpAction(prevState: any, formData: FormData) {
 
     console.log("Creating user with service role client...")
 
-    // Create the user
+    // Create the user with email confirmation required
     const { data: authData, error: authError } = await serviceRoleClient.auth.admin.createUser({
       email,
       password,
@@ -45,7 +45,7 @@ export async function signUpAction(prevState: any, formData: FormData) {
         username,
         display_name: username,
       },
-      email_confirm: true
+      email_confirm: false // Require email confirmation
     })
 
     if (authError) {
@@ -80,13 +80,16 @@ export async function signUpAction(prevState: any, formData: FormData) {
 
     console.log("Signup completed successfully")
     
+    // Return success state instead of redirecting
+    return { 
+      success: true, 
+      message: "Account created successfully! Please check your email to verify your account." 
+    }
+    
   } catch (error) {
     console.error("Signup error:", error)
     return { error: "An unexpected error occurred during signup" }
   }
-
-  // Redirect to login page after successful signup
-  redirect("/login")
 }
 
 export async function signInAction(prevState: any, formData: FormData) {

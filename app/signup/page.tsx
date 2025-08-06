@@ -8,12 +8,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import Link from 'next/link'
 import { signUpAction } from '@/app/actions/auth'
 import { useActionState } from 'react'
-import { Zap, Eye, EyeOff, AlertCircle, CheckCircle } from 'lucide-react'
+import { Zap, Eye, EyeOff, AlertCircle, CheckCircle, Mail } from 'lucide-react'
 
 export default function SignUpPage() {
   const [state, action, isPending] = useActionState(signUpAction, null)
   const [showPassword, setShowPassword] = useState(false)
 
+  // Show success screen after signup
   if (state?.success) {
     return (
       <div className="min-h-screen bg-black text-white">
@@ -24,11 +25,24 @@ export default function SignUpPage() {
         <div className="relative z-10 min-h-screen flex items-center justify-center p-4">
           <Card className="bg-black/50 border-green-500/30 backdrop-blur-sm w-full max-w-md">
             <CardContent className="p-8 text-center">
-              <CheckCircle className="w-16 h-16 text-green-400 mx-auto mb-4" />
-              <h2 className="text-2xl font-bold text-white mb-2">Account Created!</h2>
-              <p className="text-gray-400 mb-6">{state.message}</p>
+              <div className="mb-6">
+                <Mail className="w-16 h-16 text-green-400 mx-auto mb-4 animate-pulse" />
+                <CheckCircle className="w-8 h-8 text-green-400 mx-auto" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-4">Welcome to NeoForum!</h2>
+              <p className="text-gray-300 mb-4">
+                Thank you for joining our community. Your account has been created successfully.
+              </p>
+              <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4 mb-6">
+                <p className="text-purple-300 text-sm">
+                  📧 Please check your email for a verification link to activate your account.
+                </p>
+              </div>
+              <p className="text-gray-400 text-sm mb-6">
+                Once verified, you'll be able to sign in and start exploring forums, creating posts, and connecting with other users.
+              </p>
               <Link href="/login">
-                <Button className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-black font-semibold">
+                <Button className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-black font-semibold w-full">
                   Go to Sign In
                 </Button>
               </Link>
