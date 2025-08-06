@@ -63,86 +63,30 @@ async function getDashboardData(): Promise<DashboardData> {
 
   console.log("Dashboard: User authenticated:", user.id)
 
-  // Get user profile
-  const { data: profile, error: profileError } = await supabase
+  // Create fallback profile first
+  const fallbackProfile = {
+    id: user.id,
+    username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+    display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split('@')[0] || 'User',
+    role: 'user',
+    avatar_url: null,
+    created_at: user.created_at || new Date().toISOString(),
+  }
+
+  // Try to get user profile
+  const { data: profiles, error: profileError } = await supabase
     .from("profiles")
     .select("*")
     .eq("id", user.id)
-    .single()
 
-  if (profileError || !profile) {
-    console.error("Profile error:", profileError)
-    // Don't redirect, just use user metadata as fallback
-    const fallbackProfile = {
-      id: user.id,
-      username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
-      display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split('@')[0] || 'User',
-      role: 'user',
-      avatar_url: null,
-      created_at: user.created_at || new Date().toISOString(),
-    }
+  console.log("Profile query result:", { profiles, profileError })
 
-    // Get user stats with fallback profile
-    const [postsResult, commentsResult, votesResult, forumsResult] = await Promise.all([
-      supabase.from("posts").select("id").eq("author_id", user.id),
-      supabase.from("comments").select("id").eq("author_id", user.id),
-      supabase.from("post_votes").select("id").eq("user_id", user.id).eq("vote_type", 1),
-      supabase.from("forum_members").select("forum_id").eq("user_id", user.id),
-    ])
-
-    // Get recent posts from ALL users across the site with simpler query
-    const { data: recentPosts, error: postsError } = await supabase
-      .from("posts")
-      .select(`
-        id,
-        title,
-        content,
-        upvotes,
-        downvotes,
-        comment_count,
-        created_at,
-        author_id,
-        forum_id
-      `)
-      .eq("status", "published")
-      .order("created_at", { ascending: false })
-      .limit(10)
-
-    console.log("Recent posts query result:", { data: recentPosts, error: postsError })
-
-    // Get author and forum info separately
-    let enrichedPosts = []
-    if (recentPosts && recentPosts.length > 0) {
-      for (const post of recentPosts) {
-        const [authorResult, forumResult] = await Promise.all([
-          supabase.from("profiles").select("username").eq("id", post.author_id).single(),
-          supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).single()
-        ])
-
-        if (authorResult.data && forumResult.data) {
-          enrichedPosts.push({
-            ...post,
-            author: { username: authorResult.data.username },
-            forum: { name: forumResult.data.name, subdomain: forumResult.data.subdomain }
-          })
-        }
-      }
-    }
-
-    return {
-      user: fallbackProfile,
-      stats: {
-        totalPosts: postsResult.data?.length || 0,
-        totalComments: commentsResult.data?.length || 0,
-        totalUpvotes: votesResult.data?.length || 0,
-        forumsJoined: forumsResult.data?.length || 0,
-      },
-      recentPosts: enrichedPosts,
-      joinedForums: [],
-    }
+  let profile = fallbackProfile
+  if (profiles && profiles.length > 0) {
+    profile = profiles[0] // Use the actual profile if it exists
+  } else {
+    console.log("No profile found, using fallback profile")
   }
-
-  console.log("Dashboard: Profile loaded:", profile.username)
 
   // Get user stats
   const [postsResult, commentsResult, votesResult, forumsResult] = await Promise.all([
@@ -177,15 +121,15 @@ async function getDashboardData(): Promise<DashboardData> {
   if (recentPosts && recentPosts.length > 0) {
     for (const post of recentPosts) {
       const [authorResult, forumResult] = await Promise.all([
-        supabase.from("profiles").select("username").eq("id", post.author_id).single(),
-        supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).single()
+        supabase.from("profiles").select("username").eq("id", post.author_id).limit(1),
+        supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).limit(1)
       ])
 
-      if (authorResult.data && forumResult.data) {
+      if (authorResult.data && authorResult.data.length > 0 && forumResult.data && forumResult.data.length > 0) {
         enrichedPosts.push({
           ...post,
-          author: { username: authorResult.data.username },
-          forum: { name: forumResult.data.name, subdomain: forumResult.data.subdomain }
+          author: { username: authorResult.data[0].username },
+          forum: { name: forumResult.data[0].name, subdomain: forumResult.data[0].subdomain }
         })
       }
     }

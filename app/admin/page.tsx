@@ -10,24 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Users,
-  MessageSquare,
-  Globe,
-  AlertTriangle,
-  Shield,
-  Settings,
-  Search,
-  Trash2,
-  Ban,
-  CheckCircle,
-  XCircle,
-  Eye,
-  BarChart3,
-  Flag,
-  UserCheck,
-  Plus,
-} from "lucide-react"
+import { Users, MessageSquare, Globe, AlertTriangle, Shield, Settings, Search, Trash2, Ban, CheckCircle, XCircle, Eye, BarChart3, Flag, UserCheck, Plus } from 'lucide-react'
 import {
   getAdminStats,
   getAllUsers,
@@ -41,6 +24,9 @@ import {
   deleteForum,
   resolveReport,
   dismissReport,
+  promoteToAdmin,
+  promoteToModerator,
+  demoteToUser,
 } from "./actions"
 
 interface AdminStats {
@@ -208,6 +194,33 @@ export default function AdminPage() {
       await loadData() // Refresh data
     } catch (error) {
       console.error("Failed to dismiss report:", error)
+    }
+  }
+
+  const handlePromoteToAdmin = async (userId: string) => {
+    try {
+      await promoteToAdmin(userId)
+      await loadData() // Refresh data
+    } catch (error) {
+      console.error("Failed to promote user to admin:", error)
+    }
+  }
+
+  const handlePromoteToModerator = async (userId: string) => {
+    try {
+      await promoteToModerator(userId)
+      await loadData() // Refresh data
+    } catch (error) {
+      console.error("Failed to promote user to moderator:", error)
+    }
+  }
+
+  const handleDemoteToUser = async (userId: string) => {
+    try {
+      await demoteToUser(userId)
+      await loadData() // Refresh data
+    } catch (error) {
+      console.error("Failed to demote user:", error)
     }
   }
 
@@ -508,6 +521,44 @@ export default function AdminPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
+                        
+                        {/* Role Management Buttons */}
+                        {user.role !== "admin" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-purple-600 text-purple-300 hover:bg-purple-800 bg-transparent"
+                            onClick={() => handlePromoteToAdmin(user.id)}
+                            title="Promote to Admin"
+                          >
+                            <Shield className="w-4 h-4" />
+                          </Button>
+                        )}
+                        
+                        {user.role === "user" && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-blue-600 text-blue-300 hover:bg-blue-800 bg-transparent"
+                            onClick={() => handlePromoteToModerator(user.id)}
+                            title="Promote to Moderator"
+                          >
+                            <UserCheck className="w-4 h-4" />
+                          </Button>
+                        )}
+                        
+                        {(user.role === "admin" || user.role === "moderator") && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="border-yellow-600 text-yellow-300 hover:bg-yellow-800 bg-transparent"
+                            onClick={() => handleDemoteToUser(user.id)}
+                            title="Demote to User"
+                          >
+                            <Users className="w-4 h-4" />
+                          </Button>
+                        )}
+
                         {!user.is_banned ? (
                           <Button
                             variant="outline"

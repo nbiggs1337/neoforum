@@ -4,7 +4,7 @@ import { createServerSupabaseClient } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
 
 export async function getDeletedPosts() {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   // Get current user
   const {
@@ -35,16 +35,16 @@ export async function getDeletedPosts() {
     // Get author and forum information for each post
     const postsWithDetails = await Promise.all(
       (posts || []).map(async (post) => {
-        const [author, forum] = await Promise.all([
+        const [authorResult, forumResult] = await Promise.all([
           supabase.from("users").select("username").eq("id", post.author_id).single(),
           supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).single(),
         ])
 
         return {
           ...post,
-          author_username: author?.data?.username || "Unknown",
-          forum_name: forum?.data?.name || "Unknown",
-          forum_subdomain: forum?.data?.subdomain || "unknown",
+          author_username: authorResult?.data?.username || "Unknown",
+          forum_name: forumResult?.data?.name || "Unknown",
+          forum_subdomain: forumResult?.data?.subdomain || "unknown",
         }
       }),
     )
@@ -57,7 +57,7 @@ export async function getDeletedPosts() {
 }
 
 export async function restorePost(postId: string) {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   // Get current user
   const {
@@ -95,7 +95,7 @@ export async function restorePost(postId: string) {
 }
 
 export async function permanentlyDeletePost(postId: string) {
-  const supabase = createServerSupabaseClient()
+  const supabase = await createServerSupabaseClient()
 
   // Get current user
   const {

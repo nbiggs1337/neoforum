@@ -426,3 +426,93 @@ export async function dismissReport(reportId: string) {
     throw error
   }
 }
+
+export async function promoteToAdmin(userId: string) {
+  try {
+    const user = await requireAuth()
+    const supabase = await createServerSupabaseClient()
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || profile?.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role: "admin" })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error promoting user to admin:", error)
+    throw error
+  }
+}
+
+export async function promoteToModerator(userId: string) {
+  try {
+    const user = await requireAuth()
+    const supabase = await createServerSupabaseClient()
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || profile?.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role: "moderator" })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error promoting user to moderator:", error)
+    throw error
+  }
+}
+
+export async function demoteToUser(userId: string) {
+  try {
+    const user = await requireAuth()
+    const supabase = await createServerSupabaseClient()
+
+    // Check if user is admin
+    const { data: profile, error: profileError } = await supabase
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .single()
+
+    if (profileError || profile?.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({ role: "user" })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error demoting user:", error)
+    throw error
+  }
+}

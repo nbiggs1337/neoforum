@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 import { FORUM_CATEGORIES } from "@/lib/constants"
 
 function generateSubdomain(name: string): string {
@@ -17,103 +18,77 @@ function generateSubdomain(name: string): string {
 export async function createForum(formData: FormData) {
   const supabase = await createServerSupabaseClient()
 
-  try {
-    // Get current user
-    const {
-      data: { user },
-      error: userError,
-    } = await supabase.auth.getUser()
+  const {
+    data: { user },
+    error: userError,
+  } = await supabase.auth.getUser()
 
-    if (userError || !user) {
-      return { error: "You must be logged in to create a forum" }
-    }
-
-    // Check if user profile exists, create if not
-    const { data: existingProfile } = await supabase.from("profiles").select("id").eq("id", user.id).single()
-
-    if (!existingProfile) {
-      // Create profile with username from email
-      const username = user.email?.split("@")[0] || "user"
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: user.id,
-        username: username,
-        display_name: username,
-      })
-
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
-        return { error: "Failed to create user profile" }
-      }
-    }
-
-    const name = formData.get("name") as string
-    const subdomain = formData.get("subdomain") as string
-    const description = formData.get("description") as string
-    const category = formData.get("category") as string
-
-    if (!name || !subdomain || !category) {
-      return { error: "Missing required fields" }
-    }
-
-    // Validate category
-    if (!FORUM_CATEGORIES.includes(category)) {
-      return { error: "Invalid category" }
-    }
-
-    // Check if subdomain is already taken
-    const { data: existingForum } = await supabase
-      .from("forums")
-      .select("subdomain")
-      .eq("subdomain", subdomain)
-      .single()
-
-    if (existingForum) {
-      return { error: "Subdomain already taken" }
-    }
-
-    // Create the forum
-    const { data: forum, error: forumError } = await supabase
-      .from("forums")
-      .insert({
-        name,
-        subdomain,
-        description,
-        category,
-        owner_id: user.id,
-        status: "active",
-        is_private: false,
-        member_count: 1,
-        post_count: 0,
-        thread_count: 0,
-      })
-      .select()
-      .single()
-
-    if (forumError) {
-      console.error("Forum creation error:", forumError)
-      return { error: "Failed to create forum" }
-    }
-
-    // Add the creator as a member
-    const { error: memberError } = await supabase.from("forum_members").insert({
-      forum_id: forum.id,
-      user_id: user.id,
-      role: "admin",
-    })
-
-    if (memberError) {
-      console.error("Member creation error:", memberError)
-      return { error: "Failed to add forum membership" }
-    }
-
-    revalidatePath("/dashboard")
-    revalidatePath("/explore")
-
-    return { success: true, redirectTo: `/forum/${subdomain}` }
-  } catch (error: any) {
-    console.error("Create forum error:", error.message)
-    return { error: error.message || "Failed to create forum" }
+  if (userError || !user) {
+    throw new Error("You must be logged in to create a forum")
   }
+
+  const name = formData.get("name") as string
+  const subdomain = formData.get("subdomain") as string
+  const description = formData.get("description") as string
+  const category = formData.get("category") as string
+
+  if (!name || !subdomain || !description || !category) {
+    throw new Error("All fields are required")
+  }
+
+  // Validate category
+  if (!FORUM_CATEGORIES.includes(category)) {
+    throw new Error("Invalid category")
+  }
+
+  // Check if subdomain is already taken
+  const { data: existingForum } = await supabase
+    .from("forums")
+    .select("id")
+    .eq("subdomain", subdomain)
+    .single()
+
+  if (existingForum) {
+    throw new Error("Subdomain is already taken")
+  }
+
+  // Create the forum
+  const { data: forum, error: forumError } = await supabase
+    .from("forums")
+    .insert({
+      name,
+      subdomain,
+      description,
+      category,
+      owner_id: user.id,
+      status: "active",
+      member_count: 1,
+      post_count: 0,
+      thread_count: 0,
+      is_private: false,
+    })
+    .select()
+    .single()
+
+  if (forumError) {
+    console.error("Forum creation error:", forumError)
+    throw new Error("Failed to create forum")
+  }
+
+  // Add the creator as a member
+  const { error: memberError } = await supabase.from("forum_members").insert({
+    forum_id: forum.id,
+    user_id: user.id,
+    role: "admin",
+  })
+
+  if (memberError) {
+    console.error("Member creation error:", memberError)
+    // Don't throw error here, forum was created successfully
+  }
+
+  revalidatePath("/explore")
+  redirect(`/forum/${subdomain}`)
 }
 
 export async function updateForumSettings(forumId: string, formData: FormData) {
@@ -193,21 +168,22 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
 }
 
 export async function joinForum(forumId: string) {
+  console.log("joinForum called with forumId:", forumId)
+  
   try {
-    console.log("Join forum called with forumId:", forumId)
     const supabase = await createServerSupabaseClient()
 
-    // Get current user
+    // Get authenticated user
     const {
       data: { user },
-      error: userError,
+      error: authError,
     } = await supabase.auth.getUser()
 
-    console.log("User from auth:", user?.id, "Error:", userError)
+    console.log("Auth check result:", { user: user?.id, error: authError })
 
-    if (userError || !user) {
+    if (authError || !user) {
       console.log("Authentication failed")
-      return { error: "You must be logged in to join a forum" }
+      return { error: "Authentication required" }
     }
 
     // Check if user profile exists, create if not
@@ -215,69 +191,80 @@ export async function joinForum(forumId: string) {
       .from("profiles")
       .select("id")
       .eq("id", user.id)
-      .single()
+      .limit(1)
 
-    console.log("Profile check result:", existingProfile, "Error:", profileCheckError)
+    console.log("Profile check result:", { profile: existingProfile, error: profileCheckError })
 
-    if (!existingProfile && profileCheckError) {
-      console.log("Creating profile for user:", user.id)
-      const username = user.email?.split("@")[0] || "user"
-      const { error: profileError } = await supabase.from("profiles").insert({
-        id: user.id,
-        username: username,
-        display_name: username,
-      })
+    if (!existingProfile || existingProfile.length === 0) {
+      console.log("Creating user profile...")
+      const { error: createProfileError } = await supabase
+        .from("profiles")
+        .insert({
+          id: user.id,
+          username: user.user_metadata?.username || user.email?.split("@")[0] || "user",
+          display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split("@")[0] || "User",
+          role: "user",
+        })
 
-      if (profileError) {
-        console.error("Profile creation error:", profileError)
+      if (createProfileError) {
+        console.error("Failed to create profile:", createProfileError)
         return { error: "Failed to create user profile" }
       }
+      console.log("Profile created successfully")
     }
 
-    // Check if already a member
-    const { data: existingMember, error: memberCheckError } = await supabase
+    // Check if user is already a member
+    const { data: existingMembership, error: membershipError } = await supabase
       .from("forum_members")
       .select("id")
       .eq("forum_id", forumId)
       .eq("user_id", user.id)
-      .single()
+      .limit(1)
 
-    console.log("Member check result:", existingMember, "Error:", memberCheckError)
+    console.log("Membership check result:", { membership: existingMembership, error: membershipError })
 
-    if (existingMember) {
-      console.log("User is already a member")
-      return { error: "Already a member" }
+    if (membershipError) {
+      console.error("Error checking membership:", membershipError)
+      return { error: "Failed to check membership status" }
     }
 
-    // Add as member
-    console.log("Adding user as member to forum:", forumId)
-    const { error: memberError } = await supabase.from("forum_members").insert({
+    if (existingMembership && existingMembership.length > 0) {
+      console.log("User is already a member")
+      return { error: "Already a member of this forum" }
+    }
+
+    // Add user to forum
+    console.log("Adding user to forum...")
+    const { error: joinError } = await supabase.from("forum_members").insert({
       forum_id: forumId,
       user_id: user.id,
       role: "member",
+      joined_at: new Date().toISOString(),
     })
 
-    if (memberError) {
-      console.error("Join forum error:", memberError)
-      return { error: "Failed to join forum" }
-    }
-
-    // Update member count
-    console.log("Updating member count for forum:", forumId)
-    const { error: updateError } = await supabase.rpc("increment_forum_members", {
-      target_forum_id: forumId,
-    })
-
-    if (updateError) {
-      console.error("Failed to update member count:", updateError)
+    if (joinError) {
+      console.error("Error joining forum:", joinError)
+      return { error: `Failed to join forum: ${joinError.message}` }
     }
 
     console.log("Successfully joined forum")
+
+    // Update forum member count
+    const { error: updateError } = await supabase.rpc("increment_forum_member_count", {
+      forum_id: forumId,
+    })
+
+    if (updateError) {
+      console.error("Error updating member count:", updateError)
+      // Don't return error here as the join was successful
+    }
+
     revalidatePath("/explore")
+    revalidatePath(`/forum/${forumId}`)
     return { success: true }
-  } catch (error: any) {
-    console.error("Join forum error:", error.message)
-    return { error: error.message || "Failed to join forum" }
+  } catch (error) {
+    console.error("Unexpected error in joinForum:", error)
+    return { error: error instanceof Error ? error.message : "Failed to join forum" }
   }
 }
 
@@ -285,48 +272,43 @@ export async function leaveForum(forumId: string) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Get current user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return { error: "You must be logged in" }
+    if (authError || !user) {
+      return { error: "Authentication required" }
     }
 
-    // Check if user is forum owner
-    const { data: forum } = await supabase.from("forums").select("owner_id").eq("id", forumId).single()
-
-    if (forum?.owner_id === user.id) {
-      return { error: "Forum owners cannot leave their own forum" }
-    }
-
-    // Remove membership
-    const { error: memberError } = await supabase
+    // Remove user from forum
+    const { error: leaveError } = await supabase
       .from("forum_members")
       .delete()
       .eq("forum_id", forumId)
       .eq("user_id", user.id)
 
-    if (memberError) {
-      console.error("Leave forum error:", memberError)
+    if (leaveError) {
+      console.error("Error leaving forum:", leaveError)
       return { error: "Failed to leave forum" }
     }
 
-    // Update member count
-    const { error: updateError } = await supabase.rpc("decrement_forum_members", {
-      target_forum_id: forumId,
+    // Update forum member count
+    const { error: updateError } = await supabase.rpc("decrement_forum_member_count", {
+      forum_id: forumId,
     })
 
     if (updateError) {
-      console.error("Failed to update member count:", updateError)
+      console.error("Error updating member count:", updateError)
+      // Don't return error here as the leave was successful
     }
 
     revalidatePath("/explore")
+    revalidatePath(`/forum/${forumId}`)
     return { success: true }
-  } catch (error: any) {
-    console.error("Leave forum error:", error.message)
-    return { error: error.message || "Failed to leave forum" }
+  } catch (error) {
+    console.error("Leave forum error:", error)
+    return { error: error instanceof Error ? error.message : "Failed to leave forum" }
   }
 }
 
@@ -334,13 +316,13 @@ export async function followForum(forumId: string) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Get current user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return { error: "You must be logged in to follow a forum" }
+    if (authError || !user) {
+      return { error: "Authentication required" }
     }
 
     // Check if already following
@@ -352,25 +334,27 @@ export async function followForum(forumId: string) {
       .single()
 
     if (existingFollow) {
-      return { error: "Already following" }
+      return { error: "Already following this forum" }
     }
 
     // Add follow
-    const { error } = await supabase.from("forum_follows").insert({
+    const { error: followError } = await supabase.from("forum_follows").insert({
       forum_id: forumId,
       user_id: user.id,
+      followed_at: new Date().toISOString(),
     })
 
-    if (error) {
-      console.error("Follow forum error:", error)
+    if (followError) {
+      console.error("Error following forum:", followError)
       return { error: "Failed to follow forum" }
     }
 
     revalidatePath("/explore")
+    revalidatePath(`/forum/${forumId}`)
     return { success: true }
-  } catch (error: any) {
-    console.error("Follow forum error:", error.message)
-    return { error: error.message || "Failed to follow forum" }
+  } catch (error) {
+    console.error("Follow forum error:", error)
+    return { error: error instanceof Error ? error.message : "Failed to follow forum" }
   }
 }
 
@@ -378,27 +362,33 @@ export async function unfollowForum(forumId: string) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Get current user
     const {
       data: { user },
+      error: authError,
     } = await supabase.auth.getUser()
 
-    if (!user) {
-      return { error: "You must be logged in" }
+    if (authError || !user) {
+      return { error: "Authentication required" }
     }
 
     // Remove follow
-    const { error } = await supabase.from("forum_follows").delete().eq("forum_id", forumId).eq("user_id", user.id)
+    const { error: unfollowError } = await supabase
+      .from("forum_follows")
+      .delete()
+      .eq("forum_id", forumId)
+      .eq("user_id", user.id)
 
-    if (error) {
-      console.error("Unfollow forum error:", error)
+    if (unfollowError) {
+      console.error("Error unfollowing forum:", unfollowError)
+      return { error: "Failed to unfollow forum" }
     }
 
     revalidatePath("/explore")
+    revalidatePath(`/forum/${forumId}`)
     return { success: true }
-  } catch (error: any) {
-    console.error("Unfollow forum error:", error.message)
-    return { error: error.message || "Failed to unfollow forum" }
+  } catch (error) {
+    console.error("Unfollow forum error:", error)
+    return { error: error instanceof Error ? error.message : "Failed to unfollow forum" }
   }
 }
 
