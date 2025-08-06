@@ -1,4 +1,4 @@
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { createServerSupabaseClient, createClient } from "@/lib/supabase"
 import type { User } from "@/lib/supabase"
 
 export async function getCurrentUser(): Promise<User | null> {
@@ -60,9 +60,6 @@ export async function requireAuth(): Promise<User> {
           display_name:
             user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split("@")[0] || "User",
           role: "user",
-          reputation: 0,
-          post_count: 0,
-          is_banned: false,
         })
         .select()
         .single()
@@ -91,7 +88,8 @@ export async function requireAuth(): Promise<User> {
 
 export class AuthService {
   static async signIn(email: string, password: string) {
-    const supabase = await createServerSupabaseClient()
+    console.log("AuthService.signIn called with email:", email)
+    const supabase = createClient()
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -99,50 +97,73 @@ export class AuthService {
     })
 
     if (error) {
+      console.error("SignIn error:", error)
       throw error
     }
 
+    console.log("SignIn successful:", data)
     return data
   }
 
   static async signUp(email: string, password: string, username: string) {
-    const supabase = await createServerSupabaseClient()
+    console.log("AuthService.signUp called with:", { email, username })
+    const supabase = createClient()
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          username,
-          display_name: username,
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            username,
+            display_name: username,
+          },
         },
-      },
-    })
+      })
 
-    if (error) {
-      throw error
+      if (error) {
+        console.error("SignUp error from Supabase:", error)
+        console.error("Error details:", {
+          message: error.message,
+          status: error.status,
+          statusText: error.statusText,
+        })
+        throw error
+      }
+
+      console.log("SignUp successful:", data)
+      return data
+    } catch (err) {
+      console.error("SignUp catch block error:", err)
+      throw err
     }
-
-    return data
   }
 
   static async signOut() {
-    const supabase = await createServerSupabaseClient()
+    console.log("AuthService.signOut called")
+    const supabase = createClient()
 
     const { error } = await supabase.auth.signOut()
 
     if (error) {
+      console.error("SignOut error:", error)
       throw error
     }
+
+    console.log("SignOut successful")
   }
 
   static async resetPassword(email: string) {
-    const supabase = await createServerSupabaseClient()
+    console.log("AuthService.resetPassword called with email:", email)
+    const supabase = createClient()
 
     const { error } = await supabase.auth.resetPasswordForEmail(email)
 
     if (error) {
+      console.error("ResetPassword error:", error)
       throw error
     }
+
+    console.log("ResetPassword successful")
   }
 }

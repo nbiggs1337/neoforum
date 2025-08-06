@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, MessageSquare, TrendingUp, Search } from "lucide-react"
+import { Users, MessageSquare, TrendingUp, Search } from 'lucide-react'
 import Link from "next/link"
 import { JoinForumButton } from "./join-forum-button"
 import { FollowForumButton } from "./follow-forum-button"
@@ -152,7 +152,7 @@ export function ExploreClient({ initialForums, currentUserId }: ExploreClientPro
                 {currentUserId && (
                   <JoinForumButton
                     forumId={forum.id}
-                    isMember={!!forum.user_membership}
+                    isJoined={!!forum.user_membership}
                     memberCount={forum.member_count}
                     isOwner={forum.is_owner}
                   />

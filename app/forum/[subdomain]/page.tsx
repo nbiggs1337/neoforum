@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { VoteButtons } from "@/components/vote-buttons"
 import { JoinForumButton } from "@/components/join-forum-button"
 import { FollowForumButton } from "@/components/follow-forum-button"
-import { Users, MessageSquare, Calendar, Plus, TrendingUp, Clock, Zap } from "lucide-react"
+import { Users, MessageSquare, Calendar, Plus, TrendingUp, Clock, Zap } from 'lucide-react'
 import Link from "next/link"
 
 interface ForumPageProps {
@@ -103,6 +103,21 @@ async function getForumData(subdomain: string) {
   }
 }
 
+async function checkForumMembership(forumId: string, userId: string | undefined): Promise<boolean> {
+  if (!userId) return false
+
+  const supabase = await createServerSupabaseClient()
+
+  const { data: membership } = await supabase
+    .from("forum_members")
+    .select("id")
+    .eq("forum_id", forumId)
+    .eq("user_id", userId)
+    .single()
+
+  return !!membership
+}
+
 async function getUserVotes(postIds: string[], userId: string) {
   if (!userId || postIds.length === 0) return {}
 
@@ -137,6 +152,9 @@ export default async function ForumPage({ params }: ForumPageProps) {
 
   try {
     const { forum, posts } = await getForumData(subdomain)
+
+    // Check if current user is a member of this forum
+    const isJoined = await checkForumMembership(forum.id, currentUser?.id)
 
     // Get user votes for all posts
     const postIds = posts.map((post) => post.id)
@@ -207,7 +225,7 @@ export default async function ForumPage({ params }: ForumPageProps) {
                   </div>
 
                   <div className="flex flex-wrap gap-3">
-                    <JoinForumButton forumId={forum.id} memberCount={forum.member_count || 0} />
+                    <JoinForumButton forumId={forum.id} isJoined={isJoined} memberCount={forum.member_count || 0} />
                     <FollowForumButton forumId={forum.id} />
                     <Link href={`/forum/${forum.subdomain}/create-post`}>
                       <Button className="bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 text-black font-semibold px-6 py-3 rounded-lg transition-all duration-300 transform hover:scale-105 shadow-lg hover:shadow-cyan-500/25">

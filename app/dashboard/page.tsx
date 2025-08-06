@@ -57,15 +57,43 @@ async function getDashboardData(): Promise<DashboardData> {
   } = await supabase.auth.getUser()
 
   if (userError || !user) {
+    console.error("User error in dashboard:", userError)
     redirect("/login")
   }
 
-  // Get user profile
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single()
+  console.log("Dashboard: User authenticated:", user.id)
 
-  if (!profile) {
-    redirect("/login")
+  // Get user profile - create if doesn't exist
+  let { data: profile, error: profileError } = await supabase
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .single()
+
+  if (profileError || !profile) {
+    console.log("Profile not found, creating one...")
+    
+    // Create profile if it doesn't exist
+    const { data: newProfile, error: createError } = await supabase
+      .from("profiles")
+      .insert({
+        id: user.id,
+        username: user.user_metadata?.username || user.email?.split('@')[0] || 'user',
+        display_name: user.user_metadata?.display_name || user.user_metadata?.username || user.email?.split('@')[0] || 'User',
+        role: 'user'
+      })
+      .select()
+      .single()
+
+    if (createError) {
+      console.error("Failed to create profile:", createError)
+      redirect("/login")
+    }
+
+    profile = newProfile
   }
+
+  console.log("Dashboard: Profile loaded:", profile.username)
 
   // Get user stats
   const [postsResult, commentsResult, votesResult, forumsResult] = await Promise.all([
@@ -93,7 +121,7 @@ async function getDashboardData(): Promise<DashboardData> {
     .order("created_at", { ascending: false })
     .limit(5)
 
-  // Get joined forums
+  // Get ONLY forums the user has joined
   const { data: joinedForums } = await supabase
     .from("forum_members")
     .select(`

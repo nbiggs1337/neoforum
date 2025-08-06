@@ -2,7 +2,7 @@ import { createServerSupabaseClient } from "@/lib/supabase"
 import { getCurrentUser } from "@/lib/auth"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { TrendingUp, Users, MessageSquare, Plus } from "lucide-react"
+import { TrendingUp, Users, MessageSquare, Plus } from 'lucide-react'
 import Link from "next/link"
 import { ExploreClient } from "@/components/explore-client"
 
@@ -65,8 +65,9 @@ export default async function ExplorePage() {
 
     return {
       ...forum,
+      owner_display_name: forum.owner_username,
       user_membership: membership || null,
-      user_follow: follow || null,
+      user_follow: follow ? { id: follow.forum_id } : null,
       is_owner: currentUser ? forum.owner_id === currentUser.id : false,
     }
   })

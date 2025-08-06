@@ -39,7 +39,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Protected routes that require authentication
-  const protectedRoutes = ["/dashboard", "/admin", "/settings", "/forum"]
+  const protectedRoutes = ["/dashboard", "/admin", "/settings"]
   const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
   // Auth routes that should redirect if already logged in
@@ -49,6 +49,9 @@ export async function middleware(request: NextRequest) {
   // Public routes that don't need auth
   const publicRoutes = ["/", "/privacy", "/terms", "/support", "/explore"]
   const isPublicRoute = publicRoutes.some((route) => request.nextUrl.pathname === route)
+
+  // Forum routes are public but need special handling
+  const isForumRoute = request.nextUrl.pathname.startsWith("/forum")
 
   if (isProtectedRoute && !user) {
     // Redirect to login if trying to access protected route without auth
