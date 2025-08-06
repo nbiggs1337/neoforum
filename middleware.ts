@@ -48,6 +48,10 @@ export async function middleware(request: NextRequest) {
     const protectedRoutes = ["/dashboard", "/admin", "/settings"]
     const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
 
+    // Admin routes that require admin role
+    const adminRoutes = ["/admin"]
+    const isAdminRoute = adminRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
+
     if (isAuthRoute && user) {
       // Redirect to dashboard if trying to access auth routes while logged in
       const url = request.nextUrl.clone()
@@ -60,6 +64,22 @@ export async function middleware(request: NextRequest) {
       const url = request.nextUrl.clone()
       url.pathname = "/login"
       return NextResponse.redirect(url)
+    }
+
+    // Check admin permissions for admin routes
+    if (isAdminRoute && user) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .single()
+
+      if (!profile || profile.role !== "admin") {
+        // Redirect non-admin users away from admin routes
+        const url = request.nextUrl.clone()
+        url.pathname = "/"
+        return NextResponse.redirect(url)
+      }
     }
 
     return supabaseResponse
