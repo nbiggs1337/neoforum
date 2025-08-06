@@ -86,17 +86,17 @@ export function SupportMessagesList({ messages }: SupportMessagesListProps) {
     <div className="space-y-6">
       {/* Filter Tabs */}
       <Tabs value={filter} onValueChange={(value) => setFilter(value as any)}>
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="all">All ({messages.length})</TabsTrigger>
-          <TabsTrigger value="open">Open ({messages.filter(m => m.status === 'open').length})</TabsTrigger>
-          <TabsTrigger value="in_progress">In Progress ({messages.filter(m => m.status === 'in_progress').length})</TabsTrigger>
-          <TabsTrigger value="resolved">Resolved ({messages.filter(m => m.status === 'resolved').length})</TabsTrigger>
-          <TabsTrigger value="closed">Closed ({messages.filter(m => m.status === 'closed').length})</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-5 bg-gray-800 border-gray-700">
+          <TabsTrigger value="all" className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300">All ({messages.length})</TabsTrigger>
+          <TabsTrigger value="open" className="data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-300">Open ({messages.filter(m => m.status === 'open').length})</TabsTrigger>
+          <TabsTrigger value="in_progress" className="data-[state=active]:bg-yellow-500/20 data-[state=active]:text-yellow-300">In Progress ({messages.filter(m => m.status === 'in_progress').length})</TabsTrigger>
+          <TabsTrigger value="resolved" className="data-[state=active]:bg-green-500/20 data-[state=active]:text-green-300">Resolved ({messages.filter(m => m.status === 'resolved').length})</TabsTrigger>
+          <TabsTrigger value="closed" className="data-[state=active]:bg-gray-500/20 data-[state=active]:text-gray-300">Closed ({messages.filter(m => m.status === 'closed').length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value={filter} className="mt-6">
           {filteredMessages.length === 0 ? (
-            <Card>
+            <Card className="bg-gray-800 border-gray-700">
               <CardContent className="p-8 text-center">
                 <p className="text-gray-400">No support messages found for this filter.</p>
               </CardContent>
@@ -134,10 +134,10 @@ export function SupportMessagesList({ messages }: SupportMessagesListProps) {
                           onValueChange={(value) => handleStatusUpdate(message.id, value)}
                           disabled={isUpdating}
                         >
-                          <SelectTrigger className="w-32">
+                          <SelectTrigger className="w-32 bg-gray-700 border-gray-600 text-white">
                             <SelectValue />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="bg-gray-800 border-gray-700">
                             <SelectItem value="open">Open</SelectItem>
                             <SelectItem value="in_progress">In Progress</SelectItem>
                             <SelectItem value="resolved">Resolved</SelectItem>
@@ -151,6 +151,7 @@ export function SupportMessagesList({ messages }: SupportMessagesListProps) {
                             setSelectedMessage(selectedMessage === message.id ? null : message.id)
                             setAdminNotes(message.admin_notes || '')
                           }}
+                          className="border-gray-600 text-gray-300 hover:bg-gray-700"
                         >
                           {selectedMessage === message.id ? 'Hide' : 'Manage'}
                         </Button>
@@ -185,7 +186,7 @@ export function SupportMessagesList({ messages }: SupportMessagesListProps) {
                             value={adminNotes}
                             onChange={(e) => setAdminNotes(e.target.value)}
                             placeholder="Add internal notes about this support request..."
-                            className="mt-1 bg-gray-900 border-gray-700 text-white"
+                            className="mt-1 bg-gray-900 border-gray-700 text-white placeholder-gray-500"
                             rows={3}
                           />
                         </div>
@@ -194,6 +195,7 @@ export function SupportMessagesList({ messages }: SupportMessagesListProps) {
                             onClick={() => handleNotesUpdate(message.id)}
                             disabled={isUpdating}
                             size="sm"
+                            className="bg-purple-600 hover:bg-purple-700"
                           >
                             {isUpdating ? 'Saving...' : 'Save Notes'}
                           </Button>
@@ -204,6 +206,7 @@ export function SupportMessagesList({ messages }: SupportMessagesListProps) {
                               setAdminNotes('')
                             }}
                             size="sm"
+                            className="border-gray-600 text-gray-300 hover:bg-gray-700"
                           >
                             Cancel
                           </Button>

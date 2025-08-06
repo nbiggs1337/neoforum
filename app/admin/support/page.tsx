@@ -9,7 +9,7 @@ import { getSupportMessages } from '@/app/actions/support'
 
 export default async function AdminSupportPage() {
   const result = await getSupportMessages()
-  
+
   if (!result.success) {
     return (
       <div className="container mx-auto px-4 py-8">
@@ -28,8 +28,8 @@ export default async function AdminSupportPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20 nightscape-enhanced">
-        <div className="absolute inset-0 nightscape-bg"></div>
+      <div className="fixed inset-0 bg-gradient-to-br from-purple-900/20 via-black to-cyan-900/20 cyberpunk-enhanced">
+        <div className="absolute inset-0 cyberpunk-bg"></div>
       </div>
 
       <header className="relative z-10 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
