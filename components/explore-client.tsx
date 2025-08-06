@@ -32,9 +32,10 @@ interface Forum {
 interface ExploreClientProps {
   initialForums: Forum[]
   currentUserId?: string
+  isAuthenticated: boolean
 }
 
-export function ExploreClient({ initialForums, currentUserId }: ExploreClientProps) {
+export function ExploreClient({ initialForums, currentUserId, isAuthenticated }: ExploreClientProps) {
   const [forums, setForums] = useState(initialForums)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
@@ -129,7 +130,9 @@ export function ExploreClient({ initialForums, currentUserId }: ExploreClientPro
                     {forum.category}
                   </Badge>
                 </div>
-                {currentUserId && <FollowForumButton forumId={forum.id} isFollowing={!!forum.user_follow} />}
+                {isAuthenticated && (
+                  <FollowForumButton forumId={forum.id} isFollowing={!!forum.user_follow} />
+                )}
               </div>
               <p className="text-gray-400 text-sm line-clamp-2">{forum.description}</p>
             </CardHeader>
@@ -149,16 +152,18 @@ export function ExploreClient({ initialForums, currentUserId }: ExploreClientPro
 
               <div className="flex items-center justify-between">
                 <div className="text-xs text-gray-500">by {forum.owner_display_name}</div>
-                {currentUserId && !forum.is_owner && (
-                  <JoinForumButton
-                    forumId={forum.id}
-                    isJoined={!!forum.user_membership}
-                    memberCount={forum.member_count}
-                  />
-                )}
-                {forum.is_owner && (
-                  <div className="text-xs text-purple-400 font-medium">Owner</div>
-                )}
+                <div className="flex items-center space-x-2">
+                  {isAuthenticated && !forum.is_owner && (
+                    <JoinForumButton
+                      forumId={forum.id}
+                      isJoined={!!forum.user_membership}
+                      memberCount={forum.member_count}
+                    />
+                  )}
+                  {forum.is_owner && (
+                    <div className="text-xs text-purple-400 font-medium">Owner</div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>

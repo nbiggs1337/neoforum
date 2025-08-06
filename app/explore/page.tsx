@@ -10,8 +10,6 @@ export default async function ExplorePage() {
   const supabase = await createServerSupabaseClient()
   const currentUser = await getCurrentUser()
 
-  console.log('Explore page - Current user:', currentUser?.id)
-
   // Get all public forums
   const { data: forums } = await supabase
     .from("forums")
@@ -58,9 +56,6 @@ export default async function ExplorePage() {
 
     userMemberships = membershipsResult.data || []
     userFollows = followsResult.data || []
-
-    console.log('User memberships:', userMemberships)
-    console.log('User follows:', userFollows)
   }
 
   // Process forums data to include user relationships
@@ -76,8 +71,6 @@ export default async function ExplorePage() {
       is_owner: currentUser ? forum.owner_id === currentUser.id : false,
     }
   })
-
-  console.log('Processed forums sample:', processedForums[0])
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -120,15 +113,6 @@ export default async function ExplorePage() {
             )}
           </div>
         </div>
-
-        {/* Debug info */}
-        {process.env.NODE_ENV === 'development' && (
-          <div className="mb-4 p-4 bg-gray-800 rounded text-sm">
-            <p>Current User ID: {currentUser?.id || 'Not logged in'}</p>
-            <p>Forums count: {processedForums.length}</p>
-            <p>User memberships: {userMemberships.length}</p>
-          </div>
-        )}
 
         {/* Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
@@ -180,7 +164,11 @@ export default async function ExplorePage() {
         </div>
 
         {/* Forums */}
-        <ExploreClient initialForums={processedForums} currentUserId={currentUser?.id} />
+        <ExploreClient 
+          initialForums={processedForums} 
+          currentUserId={currentUser?.id} 
+          isAuthenticated={!!currentUser}
+        />
       </div>
     </div>
   )

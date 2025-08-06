@@ -90,6 +90,45 @@ async function getDashboardData(): Promise<DashboardData> {
       supabase.from("forum_members").select("forum_id").eq("user_id", user.id),
     ])
 
+    // Get recent posts from ALL users across the site with simpler query
+    const { data: recentPosts, error: postsError } = await supabase
+      .from("posts")
+      .select(`
+        id,
+        title,
+        content,
+        upvotes,
+        downvotes,
+        comment_count,
+        created_at,
+        author_id,
+        forum_id
+      `)
+      .eq("status", "published")
+      .order("created_at", { ascending: false })
+      .limit(10)
+
+    console.log("Recent posts query result:", { data: recentPosts, error: postsError })
+
+    // Get author and forum info separately
+    let enrichedPosts = []
+    if (recentPosts && recentPosts.length > 0) {
+      for (const post of recentPosts) {
+        const [authorResult, forumResult] = await Promise.all([
+          supabase.from("profiles").select("username").eq("id", post.author_id).single(),
+          supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).single()
+        ])
+
+        if (authorResult.data && forumResult.data) {
+          enrichedPosts.push({
+            ...post,
+            author: { username: authorResult.data.username },
+            forum: { name: forumResult.data.name, subdomain: forumResult.data.subdomain }
+          })
+        }
+      }
+    }
+
     return {
       user: fallbackProfile,
       stats: {
@@ -98,7 +137,7 @@ async function getDashboardData(): Promise<DashboardData> {
         totalUpvotes: votesResult.data?.length || 0,
         forumsJoined: forumsResult.data?.length || 0,
       },
-      recentPosts: [],
+      recentPosts: enrichedPosts,
       joinedForums: [],
     }
   }
@@ -113,8 +152,8 @@ async function getDashboardData(): Promise<DashboardData> {
     supabase.from("forum_members").select("forum_id").eq("user_id", user.id),
   ])
 
-  // Get recent posts from ALL users across the site
-  const { data: recentPosts } = await supabase
+  // Get recent posts from ALL users across the site with simpler query
+  const { data: recentPosts, error: postsError } = await supabase
     .from("posts")
     .select(`
       id,
@@ -124,12 +163,33 @@ async function getDashboardData(): Promise<DashboardData> {
       downvotes,
       comment_count,
       created_at,
-      profiles!inner(username),
-      forums!inner(name, subdomain)
+      author_id,
+      forum_id
     `)
     .eq("status", "published")
     .order("created_at", { ascending: false })
-    .limit(5)
+    .limit(10)
+
+  console.log("Recent posts query result:", { data: recentPosts, error: postsError })
+
+  // Get author and forum info separately to avoid join issues
+  let enrichedPosts = []
+  if (recentPosts && recentPosts.length > 0) {
+    for (const post of recentPosts) {
+      const [authorResult, forumResult] = await Promise.all([
+        supabase.from("profiles").select("username").eq("id", post.author_id).single(),
+        supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).single()
+      ])
+
+      if (authorResult.data && forumResult.data) {
+        enrichedPosts.push({
+          ...post,
+          author: { username: authorResult.data.username },
+          forum: { name: forumResult.data.name, subdomain: forumResult.data.subdomain }
+        })
+      }
+    }
+  }
 
   // Get ONLY forums the user has joined
   const { data: joinedForums } = await supabase
@@ -162,12 +222,7 @@ async function getDashboardData(): Promise<DashboardData> {
       totalUpvotes: votesResult.data?.length || 0,
       forumsJoined: forumsResult.data?.length || 0,
     },
-    recentPosts:
-      recentPosts?.map((post) => ({
-        ...post,
-        author: post.profiles,
-        forum: post.forums,
-      })) || [],
+    recentPosts: enrichedPosts,
     joinedForums: joinedForums?.map((item) => item.forums).filter(Boolean) || [],
   }
 }
