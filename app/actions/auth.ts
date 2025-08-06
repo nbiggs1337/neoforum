@@ -1,6 +1,6 @@
 'use server'
 
-import { createServerSupabaseClient } from '@/lib/supabase'
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from '@/lib/supabase'
 import { redirect } from 'next/navigation'
 
 export async function signUpAction(prevState: any, formData: FormData) {
@@ -25,7 +25,7 @@ export async function signUpAction(prevState: any, formData: FormData) {
 
     // Check if username already exists
     const { data: existingUser } = await supabase
-      .from('profiles')
+      .from('users')
       .select('username')
       .eq('username', username)
       .single()
@@ -54,13 +54,14 @@ export async function signUpAction(prevState: any, formData: FormData) {
     }
 
     if (data.user) {
-      // Create profile
-      const { error: profileError } = await supabase
-        .from('profiles')
+      // Use service role client to bypass RLS for user creation
+      const serviceSupabase = await createServiceRoleSupabaseClient()
+      
+      const { error: profileError } = await serviceSupabase
+        .from('users')
         .insert({
           id: data.user.id,
           username,
-          email,
           display_name: username
         })
 
