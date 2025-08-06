@@ -1,6 +1,6 @@
 "use server"
 
-import { createServerSupabaseClient } from "@/lib/supabase"
+import { createServerSupabaseClient, createServiceRoleSupabaseClient } from "@/lib/supabase"
 import { requireAuth } from "@/lib/auth"
 
 export async function getAdminStats() {
@@ -258,19 +258,18 @@ export async function deleteUser(userId: string) {
       throw new Error("Unauthorized")
     }
 
-    // Soft delete by anonymizing the user data
-    const { error } = await supabase
-      .from("profiles")
-      .update({
-        username: `deleted_user_${userId.slice(0, 8)}`,
-        display_name: "Deleted User",
-        avatar_url: null,
-        bio: null,
-      })
-      .eq("id", userId)
+    // Use service role client for admin operations
+    const serviceSupabase = await createServiceRoleSupabaseClient()
 
-    if (error) throw error
+    // Delete the user from Supabase Auth (this will cascade delete the profile)
+    const { error: deleteError } = await serviceSupabase.auth.admin.deleteUser(userId)
 
+    if (deleteError) {
+      console.error("Error deleting user from auth:", deleteError)
+      throw deleteError
+    }
+
+    console.log(`Successfully deleted user ${userId} from auth and database`)
     return { success: true }
   } catch (error) {
     console.error("Error deleting user:", error)
