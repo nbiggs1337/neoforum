@@ -358,22 +358,24 @@ export default async function AboutPage({ params }: AboutPageProps) {
                 <CardTitle className="text-purple-400">Forum Owner</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="flex items-start space-x-3">
-                  <Avatar className="w-12 h-12">
-                    <AvatarImage src={forum.profiles?.avatar_url || "/placeholder.svg"} />
-                    <AvatarFallback>{forum.profiles?.username?.[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-1">
-                      <h4 className="font-semibold text-white">{forum.profiles?.display_name || forum.profiles?.username}</h4>
-                      <Badge variant="outline" className="border-yellow-500/50 text-yellow-400 text-xs">
-                        Owner
-                      </Badge>
+                <Link href={`/user/${forum.profiles?.username}`} className="block hover:bg-gray-800/50 rounded-lg p-2 -m-2 transition-colors">
+                  <div className="flex items-start space-x-3">
+                    <Avatar className="w-12 h-12">
+                      <AvatarImage src={forum.profiles?.avatar_url || "/placeholder.svg"} />
+                      <AvatarFallback>{forum.profiles?.username?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-2 mb-1">
+                        <h4 className="font-semibold text-white hover:text-purple-300 transition-colors">{forum.profiles?.display_name || forum.profiles?.username}</h4>
+                        <Badge variant="outline" className="border-yellow-500/50 text-yellow-400 text-xs">
+                          Owner
+                        </Badge>
+                      </div>
+                      <p className="text-gray-500 text-xs">@{forum.profiles?.username}</p>
+                      <p className="text-gray-500 text-xs">Joined {formatDate(forum.profiles?.created_at)}</p>
                     </div>
-                    <p className="text-gray-500 text-xs">@{forum.profiles?.username}</p>
-                    <p className="text-gray-500 text-xs">Joined {formatDate(forum.profiles?.created_at)}</p>
                   </div>
-                </div>
+                </Link>
               </CardContent>
             </Card>
 
@@ -385,30 +387,32 @@ export default async function AboutPage({ params }: AboutPageProps) {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {moderators.map((mod) => (
-                    <div key={mod.id} className="flex items-center space-x-3">
-                      <Avatar className="w-10 h-10">
-                        <AvatarImage src={mod.profiles?.avatar_url || "/placeholder.svg"} />
-                        <AvatarFallback>{mod.profiles?.username?.[0]}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-2">
-                          <h5 className="font-medium text-white text-sm">
-                            {mod.profiles?.display_name || mod.profiles?.username}
-                          </h5>
-                          <Badge
-                            variant="outline"
-                            className={
-                              mod.role === "admin"
-                                ? "border-red-500/50 text-red-400 text-xs"
-                                : "border-blue-500/50 text-blue-400 text-xs"
-                            }
-                          >
-                            {mod.role}
-                          </Badge>
+                    <Link key={mod.id} href={`/user/${mod.profiles?.username}`} className="block hover:bg-gray-800/50 rounded-lg p-2 -m-2 transition-colors">
+                      <div className="flex items-center space-x-3">
+                        <Avatar className="w-10 h-10">
+                          <AvatarImage src={mod.profiles?.avatar_url || "/placeholder.svg"} />
+                          <AvatarFallback>{mod.profiles?.username?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-2">
+                            <h5 className="font-medium text-white text-sm hover:text-purple-300 transition-colors">
+                              {mod.profiles?.display_name || mod.profiles?.username}
+                            </h5>
+                            <Badge
+                              variant="outline"
+                              className={
+                                mod.role === "admin"
+                                  ? "border-red-500/50 text-red-400 text-xs"
+                                  : "border-blue-500/50 text-blue-400 text-xs"
+                              }
+                            >
+                              {mod.role}
+                            </Badge>
+                          </div>
+                          <p className="text-gray-500 text-xs">@{mod.profiles?.username}</p>
                         </div>
-                        <p className="text-gray-500 text-xs">@{mod.profiles?.username}</p>
                       </div>
-                    </div>
+                    </Link>
                   ))}
                 </CardContent>
               </Card>
