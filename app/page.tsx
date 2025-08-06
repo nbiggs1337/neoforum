@@ -27,11 +27,6 @@ export default function HomePage() {
               </div>
 
               <div className="flex items-center space-x-4">
-                <Link href="/health">
-                  <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20">
-                    Health Check
-                  </Button>
-                </Link>
                 <Link href="/login">
                   <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20">
                     Sign In
