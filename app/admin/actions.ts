@@ -25,6 +25,61 @@ async function getCurrentUser() {
   }
 }
 
+export async function getAdminStats() {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    // Check if user is admin
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    // Get basic counts with error handling
+    const [usersResult, forumsResult, postsResult, reportsResult] = await Promise.all([
+      supabase.from("users").select("id, created_at").order("created_at", { ascending: false }).limit(1000),
+      supabase.from("forums").select("id").eq("status", "active").limit(1000),
+      supabase.from("posts").select("id, created_at").eq("status", "published").limit(1000),
+      supabase.from("reports").select("id").eq("status", "pending").limit(1000),
+    ])
+
+    const users = usersResult.data || []
+    const forums = forumsResult.data || []
+    const posts = postsResult.data || []
+    const reports = reportsResult.data || []
+
+    // Calculate daily stats
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+
+    const dailySignups = users.filter((user) => new Date(user.created_at) >= today).length
+    const dailyPosts = posts.filter((post) => new Date(post.created_at) >= today).length
+
+    return {
+      totalUsers: users.length,
+      activeUsers: users.length,
+      totalForums: forums.length,
+      totalPosts: posts.length,
+      totalReports: reports.length,
+      pendingApprovals: 0,
+      bannedUsers: 0,
+      dailySignups,
+      dailyPosts,
+      serverUptime: "99.9%",
+      storageUsed: "2.4 GB",
+      bandwidth: "1.2 TB",
+    }
+  } catch (error) {
+    console.error("Error getting admin stats:", error)
+    throw error
+  }
+}
+
 export async function getAllUsers() {
   try {
     await new Promise(resolve => setTimeout(resolve, 100))
@@ -288,6 +343,113 @@ export async function unbanUser(userId: string) {
   }
 }
 
+export async function deleteUser(userId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase
+      .from("users")
+      .update({ status: "deleted" })
+      .eq("id", userId)
+
+    if (error) {
+      console.error("Error deleting user:", error)
+      throw error
+    }
+
+    console.log(`Successfully deleted user ${userId}`)
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting user:", error)
+    throw error
+  }
+}
+
+export async function suspendForum(forumId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase.from("forums").update({ status: "suspended" }).eq("id", forumId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error suspending forum:", error)
+    throw error
+  }
+}
+
+export async function activateForum(forumId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase.from("forums").update({ status: "active" }).eq("id", forumId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error activating forum:", error)
+    throw error
+  }
+}
+
+export async function deleteForum(forumId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase.from("forums").update({ status: "inactive" }).eq("id", forumId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error deleting forum:", error)
+    throw error
+  }
+}
+
 export async function resolveReport(reportId: string) {
   try {
     const user = await getCurrentUser()
@@ -338,6 +500,90 @@ export async function dismissReport(reportId: string) {
     return { success: true }
   } catch (error) {
     console.error('Error dismissing report:', error)
+    throw error
+  }
+}
+
+export async function promoteToAdmin(userId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase
+      .from("users")
+      .update({ role: "admin" })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error promoting user to admin:", error)
+    throw error
+  }
+}
+
+export async function promoteToModerator(userId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase
+      .from("users")
+      .update({ role: "moderator" })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error promoting user to moderator:", error)
+    throw error
+  }
+}
+
+export async function demoteToUser(userId: string) {
+  try {
+    const user = await getCurrentUser()
+    
+    if (!user) {
+      throw new Error("Authentication required")
+    }
+
+    if (user.role !== "admin") {
+      throw new Error("Unauthorized")
+    }
+
+    const supabase = await createServerSupabaseClient()
+
+    const { error } = await supabase
+      .from("users")
+      .update({ role: "user" })
+      .eq("id", userId)
+
+    if (error) throw error
+
+    return { success: true }
+  } catch (error) {
+    console.error("Error demoting user:", error)
     throw error
   }
 }
