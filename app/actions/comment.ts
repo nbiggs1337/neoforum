@@ -5,16 +5,6 @@ import { getCurrentUser } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { createNotification } from './notifications'
 
-export interface CreateNotificationParams {
-  recipient_id: string
-  type: 'comment_on_post' | 'reply_to_comment' | 'forum_join' | 'post_like' | 'comment_like'
-  title: string
-  message: string
-  post_id?: string
-  comment_id?: string
-  forum_id?: string
-}
-
 export async function createComment(formData: FormData) {
   try {
     const user = await getCurrentUser()
@@ -30,7 +20,7 @@ export async function createComment(formData: FormData) {
       throw new Error('Post ID and content are required')
     }
 
-    const supabase = createServerSupabaseClient()
+    const supabase = await createServerSupabaseClient()
 
     // Get post details for notification
     const { data: post } = await supabase
@@ -86,13 +76,14 @@ export async function createComment(formData: FormData) {
     if (post.author_id !== user.id) {
       try {
         await createNotification({
-          recipient_id: post.author_id,
+          userId: post.author_id,
           type: 'comment_on_post',
           title: 'New comment on your post',
           message: `${user.username} commented on "${post.title}"`,
-          post_id: postId,
-          comment_id: comment.id,
-          forum_id: post.forum_id
+          relatedPostId: postId,
+          relatedCommentId: comment.id,
+          relatedForumId: post.forum_id,
+          relatedUserId: user.id
         })
       } catch (notificationError) {
         console.error('Error creating notification:', notificationError)
@@ -111,13 +102,14 @@ export async function createComment(formData: FormData) {
 
         if (parentComment && parentComment.author_id !== user.id) {
           await createNotification({
-            recipient_id: parentComment.author_id,
+            userId: parentComment.author_id,
             type: 'reply_to_comment',
             title: 'New reply to your comment',
             message: `${user.username} replied to your comment on "${post.title}"`,
-            post_id: postId,
-            comment_id: comment.id,
-            forum_id: post.forum_id
+            relatedPostId: postId,
+            relatedCommentId: comment.id,
+            relatedForumId: post.forum_id,
+            relatedUserId: user.id
           })
         }
       } catch (notificationError) {
@@ -132,4 +124,53 @@ export async function createComment(formData: FormData) {
     console.error('Error in createComment:', error)
     throw error
   }
+}
+
+export async function deleteComment(commentId: string) {
+try {
+  const user = await getCurrentUser()
+  if (!user) {
+    return { success: false, error: 'Authentication required' }
+  }
+
+  const supabase = await createServerSupabaseClient()
+
+  // Get the comment to verify ownership
+  const { data: comment, error: commentError } = await supabase
+    .from("comments")
+    .select("id, author_id, post_id")
+    .eq("id", commentId)
+    .single()
+
+  if (commentError || !comment) {
+    return { success: false, error: "Comment not found" }
+  }
+
+  // Check if user owns the comment or is admin
+  if (comment.author_id !== user.id && user.role !== "admin") {
+    return { success: false, error: "Unauthorized" }
+  }
+
+  // Delete the comment (hard delete for now)
+  const { error: deleteError } = await supabase.from("comments").delete().eq("id", commentId)
+
+  if (deleteError) {
+    console.error("Comment deletion error:", deleteError)
+    return { success: false, error: "Failed to delete comment" }
+  }
+
+  // Update post comment count
+  const { error: updateError } = await supabase.rpc("decrement_post_comment_count", {
+    post_id: comment.post_id,
+  })
+
+  if (updateError) {
+    console.error("Failed to update comment count:", updateError)
+  }
+
+  return { success: true }
+} catch (error) {
+  console.error("Delete comment error:", error)
+  return { success: false, error: "Internal server error" }
+}
 }

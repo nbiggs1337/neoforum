@@ -7,7 +7,7 @@ BEGIN
       updated_at = NOW()
   WHERE id = post_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 -- Create function to decrement comment count
 CREATE OR REPLACE FUNCTION decrement_comment_count(post_id UUID)
@@ -18,36 +18,55 @@ BEGIN
       updated_at = NOW()
   WHERE id = post_id;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
--- Create trigger to automatically update comment counts
+-- Create trigger function to automatically update comment counts
 CREATE OR REPLACE FUNCTION update_post_comment_count()
 RETURNS TRIGGER AS $$
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    -- Increment comment count when a comment is added
-    PERFORM increment_comment_count(NEW.post_id);
+    -- Only count non-deleted comments
+    IF NEW.is_deleted IS NOT TRUE THEN
+      UPDATE posts 
+      SET comment_count = (
+        SELECT COUNT(*) 
+        FROM comments 
+        WHERE post_id = NEW.post_id 
+        AND (is_deleted IS NOT TRUE OR is_deleted IS NULL)
+      ),
+      updated_at = NOW()
+      WHERE id = NEW.post_id;
+    END IF;
+    RETURN NEW;
+  ELSIF TG_OP = 'UPDATE' THEN
+    -- Handle soft delete changes
+    IF OLD.is_deleted IS DISTINCT FROM NEW.is_deleted THEN
+      UPDATE posts 
+      SET comment_count = (
+        SELECT COUNT(*) 
+        FROM comments 
+        WHERE post_id = NEW.post_id 
+        AND (is_deleted IS NOT TRUE OR is_deleted IS NULL)
+      ),
+      updated_at = NOW()
+      WHERE id = NEW.post_id;
+    END IF;
     RETURN NEW;
   ELSIF TG_OP = 'DELETE' THEN
-    -- Decrement comment count when a comment is deleted (only if not soft deleted)
-    IF OLD.is_deleted = false OR OLD.is_deleted IS NULL THEN
-      PERFORM decrement_comment_count(OLD.post_id);
-    END IF;
+    UPDATE posts 
+    SET comment_count = (
+      SELECT COUNT(*) 
+      FROM comments 
+      WHERE post_id = OLD.post_id 
+      AND (is_deleted IS NOT TRUE OR is_deleted IS NULL)
+    ),
+    updated_at = NOW()
+    WHERE id = OLD.post_id;
     RETURN OLD;
-  ELSIF TG_OP = 'UPDATE' THEN
-    -- Handle soft delete toggle
-    IF OLD.is_deleted = false AND NEW.is_deleted = true THEN
-      -- Comment was soft deleted
-      PERFORM decrement_comment_count(NEW.post_id);
-    ELSIF OLD.is_deleted = true AND NEW.is_deleted = false THEN
-      -- Comment was restored
-      PERFORM increment_comment_count(NEW.post_id);
-    END IF;
-    RETURN NEW;
   END IF;
   RETURN NULL;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql;
 
 -- Drop existing trigger if it exists
 DROP TRIGGER IF EXISTS trigger_update_post_comment_count ON comments;
@@ -58,11 +77,11 @@ CREATE TRIGGER trigger_update_post_comment_count
   FOR EACH ROW
   EXECUTE FUNCTION update_post_comment_count();
 
--- Fix existing comment counts by recalculating them
+-- Fix existing comment counts (one-time operation)
 UPDATE posts 
 SET comment_count = (
-  SELECT COUNT(*)
+  SELECT COUNT(*) 
   FROM comments 
   WHERE comments.post_id = posts.id 
-    AND (comments.is_deleted = false OR comments.is_deleted IS NULL)
+  AND (comments.is_deleted IS NOT TRUE OR comments.is_deleted IS NULL)
 );
