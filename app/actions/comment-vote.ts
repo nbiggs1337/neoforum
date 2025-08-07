@@ -1,134 +1,131 @@
 "use server"
 
 import { createServerSupabaseClient } from "@/lib/supabase"
-import { requireAuth } from "@/lib/auth"
+import { getCurrentUser } from "@/lib/auth"
 import { revalidatePath } from "next/cache"
+import { createNotification } from "./notifications"
 
-export async function voteOnComment(commentId: string, voteType: "upvote" | "downvote" | null) {
-  console.log("=== COMMENT VOTE ACTION CALLED ===")
-  console.log("Comment ID:", commentId)
-  console.log("Vote Type:", voteType)
-
+export async function voteOnComment(commentId: string, vote: 'upvote' | 'downvote' | null) {
   try {
-    const currentUser = await requireAuth()
-    console.log("Current user:", currentUser?.id)
+    const currentUser = await getCurrentUser()
+    if (!currentUser) {
+      return { success: false, error: 'Authentication required' }
+    }
 
     const supabase = await createServerSupabaseClient()
 
-    // Convert string vote type to integer or null
-    const normalizedVoteType = voteType === "upvote" ? 1 : voteType === "downvote" ? -1 : null
-    console.log("Normalized vote type:", normalizedVoteType)
+    // Get comment details for notification
+    const { data: comment, error: commentError } = await supabase
+      .from('comments')
+      .select(`
+        *,
+        post:posts(id, title, author_id),
+        author:profiles!comments_author_id_fkey(id, username, display_name)
+      `)
+      .eq('id', commentId)
+      .single()
+
+    if (commentError || !comment) {
+      console.error('Comment fetch error:', commentError)
+      return { success: false, error: 'Comment not found' }
+    }
+
+    // Convert vote to numeric value
+    const voteValue = vote === 'upvote' ? 1 : vote === 'downvote' ? -1 : 0
 
     // Check if user has already voted on this comment
-    console.log("Checking for existing vote...")
-    const { data: existingVote, error: selectError } = await supabase
-      .from("comment_votes")
-      .select("vote_type")
-      .eq("comment_id", commentId)
-      .eq("user_id", currentUser.id)
-      .maybeSingle()
+    const { data: existingVote } = await supabase
+      .from('comment_votes')
+      .select('vote_type')
+      .eq('comment_id', commentId)
+      .eq('user_id', currentUser.id)
+      .single()
 
-    console.log("Existing vote query result:", existingVote, selectError)
-
-    if (selectError) {
-      console.error("Select vote error:", selectError)
-      return { success: false, error: "Failed to check existing vote" }
-    }
+    let operation = 'insert'
+    let oldVoteValue = 0
 
     if (existingVote) {
-      console.log("Found existing vote:", existingVote.vote_type)
-      if (normalizedVoteType === null || existingVote.vote_type === normalizedVoteType) {
-        // Remove vote if clicking the same vote type or if voteType is null
-        console.log("Removing existing vote...")
-        const { error: deleteError } = await supabase
-          .from("comment_votes")
-          .delete()
-          .eq("comment_id", commentId)
-          .eq("user_id", currentUser.id)
-
-        console.log("Delete result:", deleteError)
-        if (deleteError) {
-          console.error("Delete vote error:", deleteError)
-          return { success: false, error: "Failed to remove vote" }
-        }
+      oldVoteValue = existingVote.vote_type
+      if (voteValue === 0) {
+        // Remove vote
+        operation = 'delete'
       } else {
-        // Update vote if clicking different vote type
-        console.log("Updating existing vote...")
-        const { error: updateError } = await supabase
-          .from("comment_votes")
-          .update({ vote_type: normalizedVoteType })
-          .eq("comment_id", commentId)
-          .eq("user_id", currentUser.id)
-
-        console.log("Update result:", updateError)
-        if (updateError) {
-          console.error("Update vote error:", updateError)
-          return { success: false, error: "Failed to update vote" }
-        }
+        // Update vote
+        operation = 'update'
       }
-    } else if (normalizedVoteType !== null) {
-      // Create new vote only if voteType is not null
-      console.log("Creating new vote...")
-      const voteData = {
-        comment_id: commentId,
-        user_id: currentUser.id,
-        vote_type: normalizedVoteType,
+    }
+
+    // Perform the vote operation
+    if (operation === 'delete') {
+      const { error: deleteError } = await supabase
+        .from('comment_votes')
+        .delete()
+        .eq('comment_id', commentId)
+        .eq('user_id', currentUser.id)
+
+      if (deleteError) {
+        console.error('Delete vote error:', deleteError)
+        return { success: false, error: 'Failed to remove vote' }
       }
-      console.log("Vote data to insert:", voteData)
+    } else if (operation === 'update') {
+      const { error: updateError } = await supabase
+        .from('comment_votes')
+        .update({ vote_type: voteValue })
+        .eq('comment_id', commentId)
+        .eq('user_id', currentUser.id)
 
-      const { data: insertData, error: insertError } = await supabase.from("comment_votes").insert(voteData).select()
+      if (updateError) {
+        console.error('Update vote error:', updateError)
+        return { success: false, error: 'Failed to update vote' }
+      }
+    } else {
+      // Insert new vote
+      const { error: insertError } = await supabase
+        .from('comment_votes')
+        .insert({
+          comment_id: commentId,
+          user_id: currentUser.id,
+          vote_type: voteValue
+        })
 
-      console.log("Insert result:", insertData, insertError)
       if (insertError) {
-        console.error("Insert vote error:", insertError)
-        return { success: false, error: "Failed to cast vote" }
+        console.error('Insert vote error:', insertError)
+        return { success: false, error: 'Failed to add vote' }
       }
     }
 
-    // Wait a moment for database consistency
-    await new Promise((resolve) => setTimeout(resolve, 100))
-
-    // Count votes directly from the database
-    console.log("Counting votes...")
-    const { data: allVotes, error: votesError } = await supabase
-      .from("comment_votes")
-      .select("vote_type")
-      .eq("comment_id", commentId)
-
-    console.log("All votes for comment:", allVotes, votesError)
-
-    if (votesError) {
-      console.error("Error fetching votes:", votesError)
-      return { success: false, error: "Failed to count votes" }
-    }
-
-    const upvotes = allVotes?.filter((vote) => vote.vote_type === 1).length || 0
-    const downvotes = allVotes?.filter((vote) => vote.vote_type === -1).length || 0
-
-    console.log("Final vote counts:", { upvotes, downvotes })
-
-    // Update comment vote counts in the comments table
-    const { error: updateCommentError } = await supabase
-      .from("comments")
-      .update({
-        upvotes: upvotes,
-        downvotes: downvotes,
-      })
-      .eq("id", commentId)
+    // Update comment vote counts
+    const voteDifference = voteValue - oldVoteValue
+    const { error: updateCommentError } = await supabase.rpc('update_comment_vote_count', {
+      comment_id: commentId,
+      vote_difference: voteDifference
+    })
 
     if (updateCommentError) {
-      console.error("Error updating comment vote counts:", updateCommentError)
+      console.error('Update comment vote count error:', updateCommentError)
     }
 
-    console.log("=== COMMENT VOTE ACTION COMPLETE ===")
-    revalidatePath("/")
-    return {
-      success: true,
-      upvotes: upvotes,
-      downvotes: downvotes,
+    // Create notification for upvotes (not for self-votes or downvotes)
+    if (vote === 'upvote' && comment.author_id !== currentUser.id) {
+      await createNotification({
+        userId: comment.author_id,
+        type: 'comment_like',
+        title: 'Comment Liked',
+        message: `${currentUser.username || 'Someone'} liked your comment`,
+        relatedPostId: comment.post_id,
+        relatedCommentId: commentId,
+        relatedUserId: currentUser.id
+      })
     }
+
+    // Revalidate the post page
+    if (comment.post) {
+      revalidatePath(`/forum/*/post/${comment.post.id}`)
+    }
+
+    return { success: true }
   } catch (error) {
-    console.error("Comment vote error:", error)
-    return { success: false, error: "An unexpected error occurred" }
+    console.error('Vote on comment error:', error)
+    return { success: false, error: 'Failed to vote on comment' }
   }
 }

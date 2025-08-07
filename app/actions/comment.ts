@@ -1,74 +1,105 @@
-"use server"
+'use server'
 
-import { createServerSupabaseClient } from "@/lib/supabase"
-import { requireAuth } from "@/lib/auth"
-import { revalidatePath } from "next/cache"
+import { createServerSupabaseClient } from '@/lib/supabase'
+import { getCurrentUser } from '@/lib/auth'
+import { revalidatePath } from 'next/cache'
+import { createNotification } from './notifications'
 
 export async function createComment(formData: FormData) {
   try {
-    const user = await requireAuth()
-    const supabase = await createServerSupabaseClient()
+    const currentUser = await getCurrentUser()
+    if (!currentUser) {
+      return { success: false, error: 'Authentication required' }
+    }
 
-    const postId = formData.get("postId") as string
-    const content = formData.get("content") as string
-    const parentId = formData.get("parentId") as string | null
+    const postId = formData.get('postId') as string
+    const content = formData.get('content') as string
+    const parentId = formData.get('parentId') as string | null
 
     if (!postId || !content?.trim()) {
-      return { success: false, error: "Missing required fields" }
+      return { success: false, error: 'Post ID and content are required' }
     }
 
-    // Get the post to verify it exists and get forum info
-    const { data: post, error: postError } = await supabase
-      .from("posts")
-      .select("id, forum_id, forums!posts_forum_id_fkey(subdomain)")
-      .eq("id", postId)
+    const supabase = await createServerSupabaseClient()
+
+    // Get post details for notification
+    const { data: post } = await supabase
+      .from('posts')
+      .select('title, author_id, forum_id')
+      .eq('id', postId)
       .single()
 
-    if (postError || !post) {
-      return { success: false, error: "Post not found" }
-    }
-
     // Create the comment
-    const { data: comment, error: commentError } = await supabase
-      .from("comments")
+    const { data: comment, error } = await supabase
+      .from('comments')
       .insert({
-        content: content.trim(),
-        author_id: user.id,
         post_id: postId,
+        author_id: currentUser.id,
+        content: content.trim(),
         parent_id: parentId || null,
-        upvotes: 0,
-        downvotes: 0,
       })
       .select()
       .single()
 
-    if (commentError) {
-      console.error("Comment creation error:", commentError)
-      return { success: false, error: "Failed to create comment" }
+    if (error) {
+      console.error('Create comment error:', error)
+      return { success: false, error: error.message }
     }
 
-    // Update post comment count
-    const { error: updateError } = await supabase.rpc("increment_post_comment_count", {
-      post_id: postId,
-    })
+    // Create notifications
+    if (post) {
+      // Notify post author if it's a top-level comment
+      if (!parentId && post.author_id !== currentUser.id) {
+        await createNotification({
+          userId: post.author_id,
+          type: 'comment_on_post',
+          title: 'New comment on your post',
+          message: `${currentUser.username || 'Someone'} commented on "${post.title}"`,
+          relatedPostId: postId,
+          relatedCommentId: comment.id,
+          relatedForumId: post.forum_id,
+          relatedUserId: currentUser.id
+        })
+      }
 
-    if (updateError) {
-      console.error("Failed to update comment count:", updateError)
+      // If it's a reply, notify the parent comment author
+      if (parentId) {
+        const { data: parentComment } = await supabase
+          .from('comments')
+          .select('author_id')
+          .eq('id', parentId)
+          .single()
+
+        if (parentComment && parentComment.author_id !== currentUser.id) {
+          await createNotification({
+            userId: parentComment.author_id,
+            type: 'reply_to_comment',
+            title: 'New reply to your comment',
+            message: `${currentUser.username || 'Someone'} replied to your comment`,
+            relatedPostId: postId,
+            relatedCommentId: comment.id,
+            relatedForumId: post.forum_id,
+            relatedUserId: currentUser.id
+          })
+        }
+      }
     }
 
-    // Revalidate the post page
-    revalidatePath(`/forum/${post.forums.subdomain}/post/${postId}`)
-
+    revalidatePath(`/forum/[subdomain]/post/[postId]`, 'page')
     return { success: true, comment }
   } catch (error) {
-    console.error("Create comment error:", error)
-    return { success: false, error: "Internal server error" }
+    console.error('Create comment error:', error)
+    return { success: false, error: 'Failed to create comment' }
   }
 }
 
 export async function deleteComment(commentId: string) {
   try {
-    const user = await requireAuth()
+    const user = await getCurrentUser()
+    if (!user) {
+      return { success: false, error: 'Authentication required' }
+    }
+
     const supabase = await createServerSupabaseClient()
 
     // Get the comment to verify ownership
