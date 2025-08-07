@@ -55,6 +55,7 @@ export async function createForum(formData: FormData) {
         description,
         category,
         owner_id: currentUser.id,
+        member_count: 1, // Start with 1 member (the owner)
       })
       .select()
       .single()
@@ -65,15 +66,21 @@ export async function createForum(formData: FormData) {
     }
 
     // Add owner as member
-    await supabase.from("forum_members").insert({
+    const { error: memberError } = await supabase.from("forum_members").insert({
       forum_id: forum.id,
       user_id: currentUser.id,
-      role: "owner",
+      role: "admin",
     })
+
+    if (memberError) {
+      console.error("Error adding owner as member:", memberError)
+      // Don't fail the entire operation, but log the error
+    }
 
     revalidatePath("/explore")
     revalidatePath("/dashboard")
-    return { success: true, forum }
+    revalidatePath(`/forum/${forum.subdomain}`)
+    return { success: true, forum, redirectTo: `/forum/${forum.subdomain}` }
   } catch (error) {
     console.error("Create forum error:", error)
     return { success: false, error: "Failed to create forum" }
