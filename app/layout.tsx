@@ -6,21 +6,24 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-title: "NeoForum - Build Your Digital Empire",
-description:
-  "Create and manage your own forum community with cutting-edge technology. Connect minds, share ideas, and build the future of online discussion.",
-keywords: "forum, community, discussion, cyberpunk, technology, social",
+  title: "NeoForum - Build Your Digital Empire",
+  description:
+    "Create and manage your own forum community with cutting-edge technology. Connect minds, share ideas, and build the future of online discussion.",
+  keywords: "forum, community, discussion, cyberpunk, technology, social",
+  icons: {
+    icon: '/favicon.ico',
+  },
     generator: 'v0.dev'
 }
 
 export default function RootLayout({
-children,
+  children,
 }: {
-children: React.ReactNode
+  children: React.ReactNode
 }) {
-return (
-  <html lang="en" className="dark">
-    <body className={inter.className}>{children}</body>
-  </html>
-)
+  return (
+    <html lang="en" className="dark">
+      <body className={inter.className}>{children}</body>
+    </html>
+  )
 }
