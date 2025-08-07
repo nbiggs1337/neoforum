@@ -33,6 +33,15 @@ async function getCommentsData(searchQuery?: string) {
   }
 
   try {
+    // First check the actual column structure
+    const { data: sampleComment } = await supabase
+      .from("comments")
+      .select("*")
+      .limit(1)
+      .single()
+
+    console.log("Sample comment structure:", sampleComment)
+
     // Get ALL comments from ALL users with joins
     let query = supabase
       .from("comments")
@@ -43,9 +52,9 @@ async function getCommentsData(searchQuery?: string) {
         updated_at,
         upvotes,
         downvotes,
-        user_id,
+        author_id,
         post_id,
-        profiles (
+        profiles!comments_author_id_fkey (
           id,
           username,
           display_name,
@@ -94,8 +103,8 @@ async function getCommentsData(searchQuery?: string) {
       }
     }
 
-    // Calculate statistics
-    const uniqueAuthors = new Set(comments?.map(c => c.user_id) || []).size
+    // Calculate statistics using author_id instead of user_id
+    const uniqueAuthors = new Set(comments?.map(c => c.author_id) || []).size
     const totalUpvotes = comments?.reduce((sum, c) => sum + (c.upvotes || 0), 0) || 0
     const uniqueForums = new Set(comments?.map(c => c.posts?.forums?.subdomain).filter(Boolean) || []).size
 
@@ -321,7 +330,7 @@ export default async function AdminCommentsPage({ searchParams }: AdminCommentsP
                     <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                       <div className="flex items-center space-x-4 text-sm text-gray-400">
                         <span>ID: {comment.id}</span>
-                        <span>User ID: {comment.user_id}</span>
+                        <span>Author ID: {comment.author_id}</span>
                         <span>Score: {(comment.upvotes || 0) - (comment.downvotes || 0)}</span>
                       </div>
                       <form action={deleteComment}>
