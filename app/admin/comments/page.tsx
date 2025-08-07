@@ -33,8 +33,16 @@ async function getCommentsData(searchQuery?: string) {
   }
 
   try {
-    // Get comments with author and post information
-    let query = supabase
+    // First try a simple query to see if comments exist
+    const { data: allComments, error: simpleError } = await supabase
+      .from("comments")
+      .select("*")
+      .limit(5)
+
+    console.log("Simple comments check:", { allComments, simpleError })
+
+    // Get comments with joins
+    const { data: comments, error } = await supabase
       .from("comments")
       .select(`
         id,
@@ -43,39 +51,42 @@ async function getCommentsData(searchQuery?: string) {
         updated_at,
         upvotes,
         downvotes,
-        is_deleted,
         user_id,
         post_id,
-        profiles!comments_user_id_fkey (
+        profiles (
           id,
           username,
           display_name,
           avatar_url
         ),
-        posts!comments_post_id_fkey (
+        posts (
           id,
           title,
           forum_id,
-          forums!posts_forum_id_fkey (
+          forums (
             id,
             name,
             subdomain
           )
         )
       `)
-      .eq("is_deleted", false)
       .order("created_at", { ascending: false })
       .limit(100)
 
-    if (searchQuery) {
-      query = query.or(`content.ilike.%${searchQuery}%,profiles.username.ilike.%${searchQuery}%,profiles.display_name.ilike.%${searchQuery}%`)
-    }
-
-    const { data: comments, error } = await query
+    console.log("Comments query result:", { comments, error, count: comments?.length })
 
     if (error) {
       console.error("Error fetching comments:", error)
-      return { comments: [], stats: { total: 0, authors: 0, upvotes: 0, forums: 0 } }
+      // Return simple comments if joins fail
+      return { 
+        comments: allComments || [], 
+        stats: { 
+          total: allComments?.length || 0, 
+          authors: 0, 
+          upvotes: 0, 
+          forums: 0 
+        } 
+      }
     }
 
     // Calculate statistics
@@ -203,6 +214,13 @@ export default async function AdminCommentsPage({ searchParams }: AdminCommentsP
                 </Link>
               )}
             </form>
+          </CardContent>
+        </Card>
+
+        {/* Debug Info */}
+        <Card className="bg-black/50 border-yellow-500/30 backdrop-blur-sm mb-8">
+          <CardContent className="p-4">
+            <p className="text-yellow-400 text-sm">Debug: Found {comments.length} comments</p>
           </CardContent>
         </Card>
 
