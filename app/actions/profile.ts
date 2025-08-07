@@ -24,6 +24,11 @@ export async function updateProfile(formData: FormData) {
       return { error: "Username is required" }
     }
 
+    // Validate username for spaces
+    if (username.includes(' ')) {
+      return { error: "Username cannot contain spaces" }
+    }
+
     // Check if username is already taken by another user
     const { data: existingUser } = await supabase
       .from("profiles")

@@ -194,6 +194,14 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
               defaultValue={profile?.username || ""}
               className="bg-gray-900/50 border-gray-700 text-white focus:border-purple-500"
               required
+              onKeyDown={(e) => {
+                if (e.key === ' ') {
+                  e.preventDefault()
+                }
+              }}
+              onChange={(e) => {
+                e.target.value = e.target.value.replace(/\s/g, '')
+              }}
             />
           </div>
 

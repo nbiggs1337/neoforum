@@ -302,15 +302,22 @@ export default async function PostPage({ params }: PostPageProps) {
                       <h1 className="text-3xl font-bold text-white mb-4 leading-tight">{post.title}</h1>
                       <div className="flex items-center space-x-4 text-sm text-gray-400">
                         <div className="flex items-center space-x-2">
-                          <Avatar className="w-8 h-8 border border-purple-500/30">
-                            <AvatarImage src={post.author?.avatar_url || "/placeholder.svg"} />
-                            <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black text-xs font-bold">
-                              {getInitials(post.author?.username || "U")}
-                            </AvatarFallback>
-                          </Avatar>
+                          <Link href={`/user/${post.author?.username}`}>
+                            <Avatar className="w-8 h-8 border border-purple-500/30 hover:border-purple-400/50 transition-colors cursor-pointer">
+                              <AvatarImage src={post.author?.avatar_url || "/placeholder.svg"} />
+                              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black text-xs font-bold">
+                                {getInitials(post.author?.username || "U")}
+                              </AvatarFallback>
+                            </Avatar>
+                          </Link>
                           <div>
                             <div className="flex items-center space-x-2">
-                              <span className="text-white font-medium">{post.author?.username}</span>
+                              <Link 
+                                href={`/user/${post.author?.username}`}
+                                className="text-white font-medium hover:text-purple-300 transition-colors"
+                              >
+                                {post.author?.username}
+                              </Link>
                               <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
                             </div>
                           </div>
@@ -487,15 +494,22 @@ export default async function PostPage({ params }: PostPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-start space-x-3">
-                  <Avatar className="w-12 h-12 border border-purple-500/30">
-                    <AvatarImage src={post.author?.avatar_url || "/placeholder.svg"} />
-                    <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black font-bold">
-                      {getInitials(post.author?.username || "U")}
-                    </AvatarFallback>
-                  </Avatar>
+                  <Link href={`/user/${post.author?.username}`}>
+                    <Avatar className="w-12 h-12 border border-purple-500/30 hover:border-purple-400/50 transition-colors cursor-pointer">
+                      <AvatarImage src={post.author?.avatar_url || "/placeholder.svg"} />
+                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black font-bold">
+                        {getInitials(post.author?.username || "U")}
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
                   <div className="flex-1">
                     <div className="flex items-center space-x-2 mb-2">
-                      <h4 className="font-semibold text-white">{post.author?.username}</h4>
+                      <Link 
+                        href={`/user/${post.author?.username}`}
+                        className="font-semibold text-white hover:text-purple-300 transition-colors"
+                      >
+                        {post.author?.username}
+                      </Link>
                       <div className="w-2 h-2 bg-green-400 rounded-full"></div>
                     </div>
                     <div className="space-y-1 text-sm text-gray-400">
