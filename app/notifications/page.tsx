@@ -1,12 +1,139 @@
+import { getCurrentUser } from '@/lib/auth'
+import { redirect } from 'next/navigation'
 import { Suspense } from 'react'
 import Link from 'next/link'
 import { Bell, Zap, ArrowLeft, CheckCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { NotificationItem } from '@/components/notification-item'
-import { getNotifications, markAllNotificationsAsRead } from '@/app/actions/notifications'
-import { getCurrentUser } from '@/lib/auth'
-import { redirect } from 'next/navigation'
+
+async function getNotifications() {
+  try {
+    const { createServerSupabaseClient } = await import('@/lib/supabase')
+    const currentUser = await getCurrentUser()
+    
+    if (!currentUser) {
+      return { notifications: [] }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select(`
+        id,
+        type,
+        title,
+        message,
+        is_read,
+        created_at,
+        related_post_id,
+        related_comment_id,
+        related_forum_id,
+        related_user_id
+      `)
+      .eq('user_id', currentUser.id)
+      .order('created_at', { ascending: false })
+      .limit(50)
+
+    if (error) {
+      console.error('Get notifications error:', error)
+      return { notifications: [] }
+    }
+
+    // Manually fetch related data to avoid relationship conflicts
+    const enrichedNotifications = await Promise.all(
+      (notifications || []).map(async (notification) => {
+        const enriched = { ...notification }
+
+        try {
+          // Fetch related post
+          if (notification.related_post_id) {
+            const { data: post } = await supabase
+              .from('posts')
+              .select('id, title')
+              .eq('id', notification.related_post_id)
+              .single()
+            if (post) enriched.related_post = post
+          }
+
+          // Fetch related comment
+          if (notification.related_comment_id) {
+            const { data: comment } = await supabase
+              .from('comments')
+              .select('id, content')
+              .eq('id', notification.related_comment_id)
+              .single()
+            if (comment) enriched.related_comment = comment
+          }
+
+          // Fetch related forum
+          if (notification.related_forum_id) {
+            const { data: forum } = await supabase
+              .from('forums')
+              .select('id, name, subdomain')
+              .eq('id', notification.related_forum_id)
+              .single()
+            if (forum) enriched.related_forum = forum
+          }
+
+          // Fetch related user
+          if (notification.related_user_id) {
+            const { data: user } = await supabase
+              .from('profiles')
+              .select('id, username, display_name')
+              .eq('id', notification.related_user_id)
+              .single()
+            if (user) enriched.related_user = user
+          }
+        } catch (relatedError) {
+          console.error('Error fetching related data:', relatedError)
+          // Continue without related data
+        }
+
+        return enriched
+      })
+    )
+
+    return { notifications: enrichedNotifications }
+  } catch (error) {
+    console.error('Get notifications error:', error)
+    return { notifications: [] }
+  }
+}
+
+async function markAllNotificationsAsRead() {
+  'use server'
+  
+  try {
+    const { createServerSupabaseClient } = await import('@/lib/supabase')
+    const currentUser = await getCurrentUser()
+    
+    if (!currentUser) {
+      return { success: false, error: 'Not authenticated' }
+    }
+
+    const supabase = await createServerSupabaseClient()
+    
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', currentUser.id)
+      .eq('is_read', false)
+
+    if (error) {
+      console.error('Mark all notifications as read error:', error)
+      return { success: false, error: error.message }
+    }
+
+    const { revalidatePath } = await import('next/cache')
+    revalidatePath('/notifications')
+    return { success: true }
+  } catch (error) {
+    console.error('Mark all notifications as read error:', error)
+    return { success: false, error: 'Failed to mark all notifications as read' }
+  }
+}
 
 async function NotificationsList() {
   const currentUser = await getCurrentUser()
@@ -15,11 +142,6 @@ async function NotificationsList() {
   }
 
   const { notifications } = await getNotifications()
-
-  const handleMarkAllAsRead = async () => {
-    'use server'
-    await markAllNotificationsAsRead()
-  }
 
   return (
     <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
@@ -30,7 +152,7 @@ async function NotificationsList() {
             Notifications ({notifications.length})
           </CardTitle>
           {notifications.some(n => !n.is_read) && (
-            <form action={handleMarkAllAsRead}>
+            <form action={markAllNotificationsAsRead}>
               <Button
                 type="submit"
                 variant="outline"

@@ -1,10 +1,10 @@
+'use client'
+
 import Link from 'next/link'
-import { formatDistanceToNow } from 'date-fns'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { MessageSquare, Heart, UserPlus, Reply } from 'lucide-react'
-import { markNotificationAsRead } from '@/app/actions/notifications'
 
 interface NotificationItemProps {
   notification: {
@@ -19,16 +19,38 @@ interface NotificationItemProps {
     related_forum_id?: string
     related_user_id?: string
     related_user?: {
-      username: string
+      id?: string
+      username?: string
+      display_name?: string
       avatar_url?: string
     }
     related_post?: {
-      title: string
+      id?: string
+      title?: string
     }
     related_forum?: {
-      name: string
-      subdomain: string
+      id?: string
+      name?: string
+      subdomain?: string
     }
+  }
+}
+
+async function markNotificationAsRead(notificationId: string) {
+  try {
+    const response = await fetch('/api/notifications/mark-read', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ notificationId }),
+    })
+    
+    if (!response.ok) {
+      console.error('Failed to mark notification as read')
+    }
+  } catch (error) {
+    console.error('Error marking notification as read:', error)
   }
 }
 
@@ -65,6 +87,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   }
 
   const getInitials = (name: string) => {
+    if (!name) return 'U'
     return name
       .split(' ')
       .map(word => word[0])
@@ -89,6 +112,25 @@ export function NotificationItem({ notification }: NotificationItemProps) {
     return '#'
   }
 
+  const formatTime = (dateString: string) => {
+    try {
+      const date = new Date(dateString)
+      const now = new Date()
+      const diffInHours = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60))
+      
+      if (diffInHours < 1) {
+        return 'Just now'
+      } else if (diffInHours < 24) {
+        return `${diffInHours}h ago`
+      } else {
+        const diffInDays = Math.floor(diffInHours / 24)
+        return `${diffInDays}d ago`
+      }
+    } catch (error) {
+      return 'Recently'
+    }
+  }
+
   return (
     <Link href={getNotificationLink()} onClick={handleClick}>
       <Card className={`transition-all duration-200 hover:bg-gray-800/50 cursor-pointer ${
@@ -108,12 +150,12 @@ export function NotificationItem({ notification }: NotificationItemProps) {
                   <Avatar className="w-6 h-6 border border-purple-500/30">
                     <AvatarImage src={notification.related_user.avatar_url || '/placeholder.svg'} />
                     <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black text-xs font-bold">
-                      {getInitials(notification.related_user.username)}
+                      {getInitials(notification.related_user.username || notification.related_user.display_name || 'User')}
                     </AvatarFallback>
                   </Avatar>
                 )}
                 <span className="font-medium text-white text-sm">
-                  {notification.title}
+                  {notification.title || 'Notification'}
                 </span>
                 {!notification.is_read && (
                   <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 text-xs">
@@ -123,15 +165,15 @@ export function NotificationItem({ notification }: NotificationItemProps) {
               </div>
               
               <p className="text-gray-300 text-sm mb-2 line-clamp-2">
-                {notification.message}
+                {notification.message || 'You have a new notification'}
               </p>
               
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">
-                  {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+                  {formatTime(notification.created_at)}
                 </span>
                 
-                {notification.related_forum && (
+                {notification.related_forum?.name && (
                   <Badge variant="outline" className="border-cyan-500/50 text-cyan-400 text-xs">
                     {notification.related_forum.name}
                   </Badge>
