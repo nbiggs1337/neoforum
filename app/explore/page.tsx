@@ -72,6 +72,17 @@ export default async function ExplorePage() {
     }
   })
 
+  // Get actual total member count from forum_members table
+  const { count: totalMembers } = await supabase
+    .from("forum_members")
+    .select("*", { count: 'exact', head: true })
+
+  // Get actual total post count from posts table
+  const { count: totalPosts } = await supabase
+    .from("posts")
+    .select("*", { count: 'exact', head: true })
+    .eq("status", "published")
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Cyberpunk background */}
@@ -138,7 +149,7 @@ export default async function ExplorePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-white">
-                    {forumsWithOwners?.reduce((sum, forum) => sum + forum.member_count, 0).toLocaleString() || 0}
+                    {totalMembers?.toLocaleString() || 0}
                   </p>
                   <p className="text-gray-400">Total Members</p>
                 </div>
@@ -154,7 +165,7 @@ export default async function ExplorePage() {
                 </div>
                 <div>
                   <p className="text-2xl font-bold text-white">
-                    {forumsWithOwners?.reduce((sum, forum) => sum + forum.post_count, 0).toLocaleString() || 0}
+                    {totalPosts?.toLocaleString() || 0}
                   </p>
                   <p className="text-gray-400">Total Posts</p>
                 </div>
