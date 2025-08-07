@@ -178,7 +178,7 @@ async function incrementViewCount(postId: string) {
   try {
     const supabase = await createServerSupabaseClient()
     
-    // Use a simple increment approach - if view_count doesn't exist, this will fail gracefully
+    // Use the existing function name that we know works
     const { error } = await supabase.rpc('increment_post_views', { post_id: postId })
 
     if (error) {

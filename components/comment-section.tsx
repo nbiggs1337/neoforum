@@ -1,4 +1,4 @@
-"use client"
+'use client'
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -36,6 +36,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
   const [replyingTo, setReplyingTo] = useState<string | null>(null)
   const [replyText, setReplyText] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [votingStates, setVotingStates] = useState<Record<string, boolean>>({})
   const [commentVotes, setCommentVotes] = useState<
     Record<string, { upvotes: number; downvotes: number; userVote: string | null }>
   >(
@@ -72,10 +73,16 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
   }
 
   const handleVote = async (commentId: string, voteType: "upvote" | "downvote") => {
-    if (!currentUser) return
+    if (!currentUser || votingStates[commentId]) return
 
     const currentVote = commentVotes[commentId]?.userVote
     const newVoteType = currentVote === voteType ? null : voteType
+
+    // Set voting state to prevent double clicks
+    setVotingStates(prev => ({ ...prev, [commentId]: true }))
+
+    // Store original state for rollback
+    const originalState = commentVotes[commentId] || { upvotes: 0, downvotes: 0, userVote: null }
 
     // Optimistic update
     setCommentVotes((prev) => {
@@ -84,8 +91,8 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
       let newDownvotes = current.downvotes
 
       // Remove previous vote
-      if (current.userVote === "upvote") newUpvotes--
-      if (current.userVote === "downvote") newDownvotes--
+      if (current.userVote === "upvote") newUpvotes = Math.max(0, newUpvotes - 1)
+      if (current.userVote === "downvote") newDownvotes = Math.max(0, newDownvotes - 1)
 
       // Add new vote
       if (newVoteType === "upvote") newUpvotes++
@@ -103,28 +110,35 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
 
     try {
       const result = await voteOnComment(commentId, newVoteType)
-      if (!result.success) {
-        // Revert on error
+      
+      if (result.success) {
+        // Update with server response
         setCommentVotes((prev) => ({
           ...prev,
           [commentId]: {
-            upvotes: comments.find((c) => c.id === commentId)?.upvotes || 0,
-            downvotes: comments.find((c) => c.id === commentId)?.downvotes || 0,
-            userVote: currentVote,
+            upvotes: result.upvotes || 0,
+            downvotes: result.downvotes || 0,
+            userVote: result.userVote === 1 ? "upvote" : result.userVote === -1 ? "downvote" : null,
           },
+        }))
+      } else {
+        console.error("Vote failed:", result.error)
+        // Revert to original state on error
+        setCommentVotes((prev) => ({
+          ...prev,
+          [commentId]: originalState,
         }))
       }
     } catch (error) {
       console.error("Error voting on comment:", error)
-      // Revert on error
+      // Revert to original state on error
       setCommentVotes((prev) => ({
         ...prev,
-        [commentId]: {
-          upvotes: comments.find((c) => c.id === commentId)?.upvotes || 0,
-          downvotes: comments.find((c) => c.id === commentId)?.downvotes || 0,
-          userVote: currentVote,
-        },
+        [commentId]: originalState,
       }))
+    } finally {
+      // Clear voting state
+      setVotingStates(prev => ({ ...prev, [commentId]: false }))
     }
   }
 
@@ -236,6 +250,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
               userVote: null,
             }
             const netScore = voteData.upvotes - voteData.downvotes
+            const isVoting = votingStates[comment.id] || false
 
             return (
               <div key={comment.id}>
@@ -252,7 +267,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                             ? "text-green-400 bg-green-500/20"
                             : "text-gray-400 hover:text-green-400 hover:bg-green-500/10"
                         }`}
-                        disabled={!currentUser}
+                        disabled={!currentUser || isVoting}
                       >
                         <ArrowUp className="w-3 h-3" />
                       </Button>
@@ -272,7 +287,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                             ? "text-red-400 bg-red-500/20"
                             : "text-gray-400 hover:text-red-400 hover:bg-red-500/10"
                         }`}
-                        disabled={!currentUser}
+                        disabled={!currentUser || isVoting}
                       >
                         <ArrowDown className="w-3 h-3" />
                       </Button>
