@@ -72,7 +72,13 @@ async function getComments(postId: string) {
     let query = supabase
       .from("comments")
       .select(`
-        *,
+        id,
+        content,
+        created_at,
+        upvotes,
+        downvotes,
+        post_id,
+        author_id,
         author:profiles!comments_author_id_fkey(
           id,
           username,
@@ -93,7 +99,13 @@ async function getComments(postId: string) {
         const { data: fallbackComments, error: fallbackError } = await supabase
           .from("comments")
           .select(`
-            *,
+            id,
+            content,
+            created_at,
+            upvotes,
+            downvotes,
+            post_id,
+            author_id,
             author:profiles!comments_author_id_fkey(
               id,
               username,
