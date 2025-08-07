@@ -33,16 +33,8 @@ async function getCommentsData(searchQuery?: string) {
   }
 
   try {
-    // First try a simple query to see if comments exist
-    const { data: allComments, error: simpleError } = await supabase
-      .from("comments")
-      .select("*")
-      .limit(5)
-
-    console.log("Simple comments check:", { allComments, simpleError })
-
-    // Get comments with joins
-    const { data: comments, error } = await supabase
+    // Get ALL comments from ALL users with joins
+    let query = supabase
       .from("comments")
       .select(`
         id,
@@ -73,15 +65,28 @@ async function getCommentsData(searchQuery?: string) {
       .order("created_at", { ascending: false })
       .limit(100)
 
+    // Apply search filter if provided
+    if (searchQuery) {
+      query = query.or(`content.ilike.%${searchQuery}%`)
+    }
+
+    const { data: comments, error } = await query
+
     console.log("Comments query result:", { comments, error, count: comments?.length })
 
     if (error) {
       console.error("Error fetching comments:", error)
-      // Return simple comments if joins fail
+      // Fallback to simple query without joins
+      const { data: simpleComments } = await supabase
+        .from("comments")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(100)
+
       return { 
-        comments: allComments || [], 
+        comments: simpleComments || [], 
         stats: { 
-          total: allComments?.length || 0, 
+          total: simpleComments?.length || 0, 
           authors: 0, 
           upvotes: 0, 
           forums: 0 
