@@ -33,7 +33,7 @@ async function getCommentsData(searchQuery?: string) {
   }
 
   try {
-    // First check the actual column structure
+    // First check if is_deleted column exists
     const { data: sampleComment } = await supabase
       .from("comments")
       .select("*")
@@ -42,7 +42,10 @@ async function getCommentsData(searchQuery?: string) {
 
     console.log("Sample comment structure:", sampleComment)
 
-    // Get ALL comments from ALL users with joins
+    // Check if is_deleted column exists, if not, treat all comments as not deleted
+    const hasIsDeletedColumn = sampleComment && 'is_deleted' in sampleComment
+
+    // Get ALL non-deleted comments from ALL users with joins
     let query = supabase
       .from("comments")
       .select(`
@@ -54,6 +57,9 @@ async function getCommentsData(searchQuery?: string) {
         downvotes,
         author_id,
         post_id,
+        ${hasIsDeletedColumn ? 'is_deleted,' : ''}
+        ${hasIsDeletedColumn ? 'deleted_at,' : ''}
+        ${hasIsDeletedColumn ? 'deleted_by,' : ''}
         profiles!comments_author_id_fkey (
           id,
           username,
@@ -73,6 +79,11 @@ async function getCommentsData(searchQuery?: string) {
       `)
       .order("created_at", { ascending: false })
       .limit(100)
+
+    // Only filter by is_deleted if the column exists
+    if (hasIsDeletedColumn) {
+      query = query.eq("is_deleted", false)
+    }
 
     // Apply search filter if provided
     if (searchQuery) {
@@ -103,7 +114,7 @@ async function getCommentsData(searchQuery?: string) {
       }
     }
 
-    // Calculate statistics using author_id instead of user_id
+    // Calculate statistics using author_id
     const uniqueAuthors = new Set(comments?.map(c => c.author_id) || []).size
     const totalUpvotes = comments?.reduce((sum, c) => sum + (c.upvotes || 0), 0) || 0
     const uniqueForums = new Set(comments?.map(c => c.posts?.forums?.subdomain).filter(Boolean) || []).size

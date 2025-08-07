@@ -1,7 +1,6 @@
 'use server'
 
 import { revalidatePath } from "next/cache"
-import { redirect } from "next/navigation"
 import { createServerSupabaseClient } from "@/lib/supabase"
 
 export async function deleteComment(formData: FormData) {
@@ -48,45 +47,41 @@ export async function deleteComment(formData: FormData) {
       throw new Error('Comment not found')
     }
 
-    // Try to delete with service role client to bypass RLS
-    const serviceSupabase = await createServerSupabaseClient()
-    
-    // Delete the comment with proper response handling
-    const { data, error } = await serviceSupabase
-      .from("comments")
-      .delete()
-      .eq("id", commentId)
-      .select()
+    // Use the SQL function to bypass RLS for soft delete
+    const { data: sqlResult, error: sqlError } = await supabase.rpc('soft_delete_comment_admin', {
+      comment_id: commentId,
+      admin_user_id: user.id
+    })
 
-    console.log("Delete result:", { data, error })
+    console.log("SQL soft delete result:", { sqlResult, sqlError })
 
-    if (error) {
-      console.error("Error deleting comment:", error)
+    if (sqlError) {
+      console.error("SQL soft delete failed:", sqlError)
+      throw new Error(`Failed to soft delete comment: ${sqlError.message}`)
+    }
+
+    if (sqlResult === true) {
+      console.log(`Admin ${user.email} soft deleted comment ${commentId} via SQL function`)
       
-      // Try alternative delete approach using raw SQL if RLS is blocking
-      const { data: sqlResult, error: sqlError } = await serviceSupabase.rpc('delete_comment_admin', {
-        comment_id: commentId
-      })
-      
-      if (sqlError) {
-        console.error("SQL delete also failed:", sqlError)
-        throw new Error(`Failed to delete comment: ${error.message}`)
-      }
-      
-      console.log(`Admin ${user.email} deleted comment ${commentId} via SQL function`)
+      // Verify the update worked by checking the comment again
+      const { data: updatedComment } = await supabase
+        .from("comments")
+        .select("is_deleted, deleted_at, deleted_by")
+        .eq("id", commentId)
+        .single()
+
+      console.log("Updated comment verification:", updatedComment)
     } else {
-      const deletedCount = data ? data.length : 0
-      console.log(`Admin ${user.email} deleted comment ${commentId}, affected rows: ${deletedCount}`)
+      console.error("SQL function returned false - comment may not exist")
+      throw new Error('Failed to soft delete comment - comment may not exist')
     }
     
-    // Force revalidation and redirect to refresh the page state
+    // Revalidate the admin comments page to refresh the data
     revalidatePath('/admin/comments')
     
+    return { success: true }
   } catch (error) {
     console.error("Error in deleteComment:", error)
     throw error
   }
-
-  // Redirect to refresh the page and show updated comment list
-  redirect('/admin/comments')
 }

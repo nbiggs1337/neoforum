@@ -68,7 +68,14 @@ async function getComments(postId: string) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    const { data: comments, error } = await supabase
+    // First check if is_deleted column exists
+    const { data: sampleComment } = await supabase
+      .from("comments")
+      .select("*")
+      .limit(1)
+      .single()
+
+    let query = supabase
       .from("comments")
       .select(`
         *,
@@ -81,6 +88,13 @@ async function getComments(postId: string) {
       `)
       .eq("post_id", postId)
       .order("created_at", { ascending: true })
+
+    // Only filter by is_deleted if the column exists
+    if (sampleComment && 'is_deleted' in sampleComment) {
+      query = query.eq("is_deleted", false)
+    }
+
+    const { data: comments, error } = await query
 
     if (error) {
       console.error("Comments fetch error:", error)
