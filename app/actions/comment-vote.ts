@@ -94,15 +94,28 @@ export async function voteOnComment(commentId: string, vote: 'upvote' | 'downvot
       }
     }
 
-    // Update comment vote counts
-    const voteDifference = voteValue - oldVoteValue
-    const { error: updateCommentError } = await supabase.rpc('update_comment_vote_count', {
-      comment_id: commentId,
-      vote_difference: voteDifference
-    })
+    // Update comment vote counts manually instead of using the function
+    const { data: allVotes, error: votesError } = await supabase
+      .from('comment_votes')
+      .select('vote_type')
+      .eq('comment_id', commentId)
 
-    if (updateCommentError) {
-      console.error('Update comment vote count error:', updateCommentError)
+    if (!votesError && allVotes) {
+      const upvotes = allVotes.filter(v => v.vote_type === 1).length
+      const downvotes = allVotes.filter(v => v.vote_type === -1).length
+
+      const { error: updateCommentError } = await supabase
+        .from('comments')
+        .update({
+          upvotes: upvotes,
+          downvotes: downvotes,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', commentId)
+
+      if (updateCommentError) {
+        console.error('Update comment vote count error:', updateCommentError)
+      }
     }
 
     // Create notification for upvotes (not for self-votes or downvotes)
