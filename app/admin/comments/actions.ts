@@ -33,10 +33,10 @@ export async function deleteComment(formData: FormData) {
   }
 
   try {
-    // Delete the comment
+    // Mark the comment as deleted instead of actually deleting it
     const { error } = await supabase
       .from("comments")
-      .delete()
+      .update({ is_deleted: true })
       .eq("id", commentId)
 
     if (error) {
