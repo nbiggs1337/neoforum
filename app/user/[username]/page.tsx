@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
-import { ArrowLeft, Calendar, MessageSquare, ThumbsUp, ThumbsDown, User, Shield, Crown } from "lucide-react"
+import { ArrowLeft, Calendar, MessageSquare, ThumbsUp, ThumbsDown, User, Shield, Crown } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { VoteButtons } from "@/components/vote-buttons"
 
@@ -29,11 +29,24 @@ interface PostData {
   forum_name: string
 }
 
+interface CommentData {
+  id: string
+  content: string
+  created_at: string
+  upvotes: number
+  downvotes: number
+  post_id: string
+  post_title: string
+  forum_subdomain: string
+  forum_name: string
+}
+
 async function getUserData(username: string): Promise<{
   user: UserData
   posts: PostData[]
   upvotedPosts: PostData[]
   downvotedPosts: PostData[]
+  comments: CommentData[]
 }> {
   try {
     const supabase = await createServerSupabaseClient()
@@ -119,6 +132,31 @@ async function getUserData(username: string): Promise<{
       throw new Error("Failed to fetch downvoted posts")
     }
 
+    // Get user's comments
+    const { data: comments, error: commentsError } = await supabase
+      .from("comments")
+      .select(`
+        id,
+        content,
+        created_at,
+        upvotes,
+        downvotes,
+        post_id,
+        post:posts(
+          id,
+          title,
+          forum:forums(subdomain, name)
+        )
+      `)
+      .eq("author_id", user.id)
+      .eq("is_deleted", false)
+      .order("created_at", { ascending: false })
+
+    if (commentsError) {
+      console.error("Comments fetch error:", commentsError)
+      throw new Error("Failed to fetch comments")
+    }
+
     // Transform the data
     const transformedPosts =
       posts?.map((post: any) => ({
@@ -145,11 +183,20 @@ async function getUserData(username: string): Promise<{
         }))
         .filter(Boolean) || []
 
+    const transformedComments =
+      comments?.map((comment: any) => ({
+        ...comment,
+        post_title: comment.post?.title,
+        forum_subdomain: comment.post?.forum?.subdomain,
+        forum_name: comment.post?.forum?.name,
+      })) || []
+
     return {
       user,
       posts: transformedPosts,
       upvotedPosts: transformedUpvotedPosts,
       downvotedPosts: transformedDownvotedPosts,
+      comments: transformedComments,
     }
   } catch (error) {
     console.error("User data fetch error:", error)
@@ -217,10 +264,53 @@ function PostCard({ post }: { post: PostData }) {
   )
 }
 
+function CommentCard({ comment }: { comment: CommentData }) {
+  return (
+    <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm hover:border-purple-400/50 transition-colors">
+      <CardContent className="p-6">
+        <div className="flex items-start justify-between gap-6">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-3">
+              <Link
+                href={`/forum/${comment.forum_subdomain}`}
+                className="text-cyan-400 hover:text-cyan-300 text-sm font-medium transition-colors"
+              >
+                f/{comment.forum_subdomain}
+              </Link>
+              <span className="text-gray-500">•</span>
+              <Link
+                href={`/forum/${comment.forum_subdomain}/post/${comment.post_id}`}
+                className="text-purple-400 hover:text-purple-300 text-sm font-medium transition-colors"
+              >
+                {comment.post_title}
+              </Link>
+              <span className="text-gray-500">•</span>
+              <span className="text-gray-400 text-sm">{new Date(comment.created_at).toLocaleDateString()}</span>
+            </div>
+            <Link href={`/forum/${comment.forum_subdomain}/post/${comment.post_id}`} className="block group">
+              <p className="text-gray-300 text-sm leading-relaxed mb-4">{comment.content}</p>
+            </Link>
+            <div className="flex items-center gap-4 text-sm text-gray-400">
+              <div className="flex items-center gap-1">
+                <ThumbsUp className="w-4 h-4" />
+                <span>{comment.upvotes || 0}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                <ThumbsDown className="w-4 h-4" />
+                <span>{comment.downvotes || 0}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 export default async function UserProfilePage({ params }: { params: { username: string } }) {
   try {
     const { username } = await params
-    const { user, posts, upvotedPosts, downvotedPosts } = await getUserData(username)
+    const { user, posts, upvotedPosts, downvotedPosts, comments } = await getUserData(username)
 
     return (
       <div className="min-h-screen bg-black text-white">
@@ -313,6 +403,12 @@ export default async function UserProfilePage({ params }: { params: { username: 
                   Posts ({posts.length})
                 </TabsTrigger>
                 <TabsTrigger
+                  value="comments"
+                  className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300 px-6 py-3"
+                >
+                  Comments ({comments.length})
+                </TabsTrigger>
+                <TabsTrigger
                   value="upvoted"
                   className="data-[state=active]:bg-purple-500/20 data-[state=active]:text-purple-300 px-6 py-3"
                 >
@@ -335,6 +431,20 @@ export default async function UserProfilePage({ params }: { params: { username: 
                       <MessageSquare className="w-16 h-16 text-gray-500 mx-auto mb-6" />
                       <h3 className="text-xl font-semibold text-gray-400 mb-3">No posts yet</h3>
                       <p className="text-gray-500 text-lg">This user hasn't created any posts.</p>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+
+              <TabsContent value="comments" className="space-y-6">
+                {comments.length > 0 ? (
+                  comments.map((comment) => <CommentCard key={comment.id} comment={comment} />)
+                ) : (
+                  <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
+                    <CardContent className="p-12 text-center">
+                      <MessageSquare className="w-16 h-16 text-gray-500 mx-auto mb-6" />
+                      <h3 className="text-xl font-semibold text-gray-400 mb-3">No comments yet</h3>
+                      <p className="text-gray-500 text-lg">This user hasn't made any comments.</p>
                     </CardContent>
                   </Card>
                 )}
