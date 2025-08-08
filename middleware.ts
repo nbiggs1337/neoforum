@@ -1,9 +1,11 @@
-import { createServerClient } from "@supabase/ssr"
-import { NextResponse, type NextRequest } from "next/server"
+import { createServerClient } from '@supabase/ssr'
+import { NextResponse, type NextRequest } from 'next/server'
 
 export async function middleware(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
+  let response = NextResponse.next({
+    request: {
+      headers: request.headers,
+    },
   })
 
   const supabase = createServerClient(
@@ -11,82 +13,94 @@ export async function middleware(request: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
+        get(name: string) {
+          return request.cookies.get(name)?.value
         },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
+        set(name: string, value: string, options: any) {
+          request.cookies.set({
+            name,
+            value,
+            ...options,
           })
-          cookiesToSet.forEach(({ name, value, options }) => supabaseResponse.cookies.set(name, value, options))
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value,
+            ...options,
+          })
+        },
+        remove(name: string, options: any) {
+          request.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
+          response = NextResponse.next({
+            request: {
+              headers: request.headers,
+            },
+          })
+          response.cookies.set({
+            name,
+            value: '',
+            ...options,
+          })
         },
       },
-    },
+    }
   )
 
-  // Skip middleware for static files and API routes
-  if (
-    request.nextUrl.pathname.startsWith("/_next") ||
-    request.nextUrl.pathname.startsWith("/api") ||
-    request.nextUrl.pathname.includes(".") ||
-    request.nextUrl.pathname === "/favicon.ico"
-  ) {
-    return supabaseResponse
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  // Define protected routes that require authentication
+  const protectedRoutes = [
+    '/dashboard',
+    '/settings',
+    '/notifications',
+    '/admin'
+  ]
+
+  // Define public routes that don't require authentication
+  const publicRoutes = [
+    '/',
+    '/login',
+    '/signup',
+    '/explore',
+    '/terms',
+    '/privacy',
+    '/support',
+    '/health',
+    '/debug'
+  ]
+
+  const { pathname } = request.nextUrl
+
+  // Check if the current path is a protected route
+  const isProtectedRoute = protectedRoutes.some(route => pathname.startsWith(route))
+  
+  // Check if the current path is a public route
+  const isPublicRoute = publicRoutes.some(route => pathname === route || pathname.startsWith(route))
+  
+  // Check if it's a forum route (these are public)
+  const isForumRoute = pathname.startsWith('/forum/') || pathname.startsWith('/user/')
+
+  // If user is not authenticated and trying to access a protected route
+  if (!user && isProtectedRoute) {
+    return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  try {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser()
-
-    // Auth routes that should redirect if already logged in
-    const authRoutes = ["/login", "/signup"]
-    const isAuthRoute = authRoutes.includes(request.nextUrl.pathname)
-
-    // Protected routes that require authentication
-    const protectedRoutes = ["/dashboard", "/admin", "/settings"]
-    const isProtectedRoute = protectedRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
-
-    // Admin routes that require admin role
-    const adminRoutes = ["/admin"]
-    const isAdminRoute = adminRoutes.some((route) => request.nextUrl.pathname.startsWith(route))
-
-    if (isAuthRoute && user) {
-      // Redirect to dashboard if trying to access auth routes while logged in
-      const url = request.nextUrl.clone()
-      url.pathname = "/dashboard"
-      return NextResponse.redirect(url)
-    }
-
-    if (isProtectedRoute && !user) {
-      // Redirect to login if trying to access protected route without auth
-      const url = request.nextUrl.clone()
-      url.pathname = "/login"
-      return NextResponse.redirect(url)
-    }
-
-    // Check admin permissions for admin routes
-    if (isAdminRoute && user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .single()
-
-      if (!profile || profile.role !== "admin") {
-        // Redirect non-admin users away from admin routes
-        const url = request.nextUrl.clone()
-        url.pathname = "/"
-        return NextResponse.redirect(url)
-      }
-    }
-
-    return supabaseResponse
-  } catch (error) {
-    console.error("Middleware error:", error)
-    return supabaseResponse
+  // If user is authenticated and trying to access login/signup, redirect to dashboard
+  if (user && (pathname === '/login' || pathname === '/signup')) {
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
+
+  return response
 }
 
 export const config = {
@@ -96,7 +110,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
+     * Feel free to modify this pattern to include more paths.
      */
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }
