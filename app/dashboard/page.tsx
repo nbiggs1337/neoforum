@@ -118,17 +118,16 @@ async function getDashboardData(page: number = 1, sortBy: string = 'new'): Promi
   let query = supabase
     .from("posts")
     .select(`
-      id,
-      title,
-      content,
-      upvotes,
-      downvotes,
-      comment_count,
-      image_urls,
-      created_at,
-      author_id,
-      forum_id
-    `)
+    id,
+    title,
+    content,
+    upvotes,
+    downvotes,
+    image_urls,
+    created_at,
+    author_id,
+    forum_id
+  `)
     .eq("status", "published")
     .range(offset, offset + postsPerPage - 1)
 
@@ -165,14 +164,16 @@ async function getDashboardData(page: number = 1, sortBy: string = 'new'): Promi
   let enrichedPosts = []
   if (recentPosts && recentPosts.length > 0) {
     for (const post of recentPosts) {
-      const [authorResult, forumResult] = await Promise.all([
+      const [authorResult, forumResult, commentCountResult] = await Promise.all([
         supabase.from("profiles").select("username").eq("id", post.author_id).limit(1),
-        supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).limit(1)
+        supabase.from("forums").select("name, subdomain").eq("id", post.forum_id).limit(1),
+        supabase.from("comments").select("id", { count: 'exact', head: true }).eq("post_id", post.id).eq("is_deleted", false)
       ])
 
       if (authorResult.data && authorResult.data.length > 0 && forumResult.data && forumResult.data.length > 0) {
         enrichedPosts.push({
           ...post,
+          comment_count: commentCountResult.count || 0,
           author: { username: authorResult.data[0].username },
           forum: { name: forumResult.data[0].name, subdomain: forumResult.data[0].subdomain }
         })
