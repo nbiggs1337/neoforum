@@ -118,6 +118,41 @@ export async function createComment(formData: FormData) {
       }
     }
 
+    // Handle @mentions in the comment content
+    const mentionRegex = /@(\w+)/g
+    const mentions = content.match(mentionRegex)
+    
+    if (mentions) {
+      for (const mention of mentions) {
+        const username = mention.substring(1) // Remove the @ symbol
+        
+        try {
+          // Find the mentioned user
+          const { data: mentionedUser } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('username', username)
+            .single()
+
+          if (mentionedUser && mentionedUser.id !== user.id) {
+            await createNotification({
+              userId: mentionedUser.id,
+              type: 'mention_in_comment',
+              title: 'You were mentioned in a comment',
+              message: `${user.username} mentioned you in a comment on "${post.title}"`,
+              relatedPostId: postId,
+              relatedCommentId: comment.id,
+              relatedForumId: post.forum_id,
+              relatedUserId: user.id
+            })
+          }
+        } catch (mentionError) {
+          console.error('Error creating mention notification:', mentionError)
+          // Don't fail the comment creation if mention notification fails
+        }
+      }
+    }
+
     revalidatePath(`/forum/[subdomain]/post/[postId]`, 'page')
     return { success: true, comment }
   } catch (error) {

@@ -184,6 +184,11 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
     }
   }
 
+  const handleStartReply = (commentId: string, username: string) => {
+    setReplyingTo(commentId)
+    setReplyText(`@${username} `)
+  }
+
   return (
     <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
       <CardHeader>
@@ -317,7 +322,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => setReplyingTo(comment.id)}
+                            onClick={() => handleStartReply(comment.id, comment.author.username)}
                             className="text-gray-400 hover:text-purple-400 hover:bg-purple-500/10 text-xs"
                           >
                             <Reply className="w-3 h-3 mr-1" />
