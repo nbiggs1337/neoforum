@@ -1,4 +1,4 @@
--- Create a simple function to get forum by subdomain
+-- Create a simple function to get forum by subdomain (case-insensitive)
 CREATE OR REPLACE FUNCTION get_forum_by_subdomain(subdomain_param text)
 RETURNS TABLE (
   id uuid,
@@ -38,7 +38,7 @@ BEGIN
     f.created_at,
     f.updated_at
   FROM forums f
-  WHERE f.subdomain = subdomain_param
+  WHERE LOWER(f.subdomain) = LOWER(subdomain_param)
   LIMIT 1;
 END;
 $$ LANGUAGE plpgsql;

@@ -117,7 +117,7 @@ export async function getForumBySubdomain(subdomain: string): Promise<Forum | nu
   const { data, error } = await supabase
     .from("forums")
     .select("*")
-    .eq("subdomain", subdomain)
+    .ilike("subdomain", subdomain)
     .eq("status", "active")
     .single()
 

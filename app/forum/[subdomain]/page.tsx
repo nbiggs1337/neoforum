@@ -22,7 +22,7 @@ async function getForumData(subdomain: string) {
 
     console.log("Fetching forum data for subdomain:", subdomain)
 
-    // Get forum details with accurate post count
+    // Get forum details with case-insensitive lookup
     const { data: forums, error: forumError } = await supabase
       .from("forums")
       .select(`
@@ -42,7 +42,7 @@ async function getForumData(subdomain: string) {
         created_at,
         updated_at
       `)
-      .eq("subdomain", subdomain)
+      .ilike("subdomain", subdomain)
       .eq("status", "active")
 
     if (forumError) {

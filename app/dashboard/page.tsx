@@ -182,9 +182,9 @@ async function getDashboardData(page: number = 1, sortBy: string = 'new'): Promi
 
   // Get forums the user has joined - with better error handling
   console.log("Fetching forum memberships for user:", user.id)
-  
+
   let joinedForums = []
-  
+
   try {
     const { data: forumMemberships, error: membershipError } = await supabase
       .from("forum_members")
