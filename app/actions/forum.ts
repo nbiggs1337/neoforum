@@ -96,16 +96,32 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
 
     const supabase = await createServerSupabaseClient()
 
-    // Check if user is owner or moderator
-    const { data: member } = await supabase
-      .from("forum_members")
-      .select("role")
-      .eq("forum_id", forumId)
-      .eq("user_id", currentUser.id)
+    // Get forum details first
+    const { data: forum } = await supabase
+      .from("forums")
+      .select("owner_id, subdomain")
+      .eq("id", forumId)
       .single()
 
-    if (!member || (member.role !== "owner" && member.role !== "moderator")) {
-      return { success: false, error: "Not authorized" }
+    if (!forum) {
+      return { success: false, error: "Forum not found" }
+    }
+
+    // Check if user is owner
+    const isOwner = forum.owner_id === currentUser.id
+
+    if (!isOwner) {
+      // Check if user is admin or moderator
+      const { data: member } = await supabase
+        .from("forum_members")
+        .select("role")
+        .eq("forum_id", forumId)
+        .eq("user_id", currentUser.id)
+        .single()
+
+      if (!member || !["admin", "moderator"].includes(member.role)) {
+        return { success: false, error: "Not authorized" }
+      }
     }
 
     const name = formData.get("name") as string
@@ -130,6 +146,8 @@ export async function updateForumSettings(forumId: string, formData: FormData) {
       return { success: false, error: error.message }
     }
 
+    revalidatePath(`/forum/${forum.subdomain}`)
+    revalidatePath(`/forum/${forum.subdomain}/settings`)
     return { success: true }
   } catch (error) {
     console.error("Update forum error:", error)
