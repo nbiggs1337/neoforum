@@ -3,7 +3,7 @@ import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Zap, Users, MessageSquare, Settings, User, LogOut, Eye, ThumbsUp, Calendar, Image, Bell, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Zap, Users, MessageSquare, Settings, User, LogOut, Eye, ThumbsUp, Calendar, Image, Bell, ChevronLeft, ChevronRight, TrendingUp, Flame, Clock, Trophy } from 'lucide-react'
 import { createServerSupabaseClient } from "@/lib/supabase"
 import { CreateForumForm } from "@/components/create-forum-form"
 import { NotificationBell } from "@/components/notification-bell"
@@ -56,7 +56,7 @@ interface DashboardData {
   }
 }
 
-async function getDashboardData(page: number = 1): Promise<DashboardData> {
+async function getDashboardData(page: number = 1, sortBy: string = 'new'): Promise<DashboardData> {
   const supabase = await createServerSupabaseClient()
   const postsPerPage = 5
 
@@ -114,8 +114,8 @@ async function getDashboardData(page: number = 1): Promise<DashboardData> {
   const totalPages = Math.ceil((totalPostsCount || 0) / postsPerPage)
   const offset = (page - 1) * postsPerPage
 
-  // Get recent posts from ALL users across the site with pagination
-  const { data: recentPosts, error: postsError } = await supabase
+  // Build query based on sort option
+  let query = supabase
     .from("posts")
     .select(`
       id,
@@ -130,8 +130,34 @@ async function getDashboardData(page: number = 1): Promise<DashboardData> {
       forum_id
     `)
     .eq("status", "published")
-    .order("created_at", { ascending: false })
     .range(offset, offset + postsPerPage - 1)
+
+  // Apply sorting based on filter
+  switch (sortBy) {
+    case 'hot':
+      // Hot: Sort by score (upvotes - downvotes) with recent bias
+      query = query.order("upvotes", { ascending: false })
+      break
+    case 'trending':
+      // Trending: Posts from last 7 days sorted by engagement
+      const sevenDaysAgo = new Date()
+      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+      query = query
+        .gte("created_at", sevenDaysAgo.toISOString())
+        .order("upvotes", { ascending: false })
+      break
+    case 'top':
+      // Top: Highest upvoted posts
+      query = query.order("upvotes", { ascending: false })
+      break
+    case 'new':
+    default:
+      // New: Most recent posts (default)
+      query = query.order("created_at", { ascending: false })
+      break
+  }
+
+  const { data: recentPosts, error: postsError } = await query
 
   console.log("Recent posts query result:", { data: recentPosts, error: postsError })
 
@@ -242,10 +268,18 @@ async function signOut() {
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: { page?: string }
+  searchParams: { page?: string; sort?: string }
 }) {
   const page = parseInt(searchParams.page || '1', 10)
-  const data = await getDashboardData(page)
+  const sortBy = searchParams.sort || 'new'
+  const data = await getDashboardData(page, sortBy)
+
+  const filterOptions = [
+    { value: 'new', label: 'New', icon: Clock },
+    { value: 'hot', label: 'Hot', icon: Flame },
+    { value: 'trending', label: 'Trending', icon: TrendingUp },
+    { value: 'top', label: 'Top', icon: Trophy },
+  ]
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -384,6 +418,33 @@ export default async function DashboardPage({
                   <CardTitle className="text-xl font-bold text-purple-300">Recent Posts</CardTitle>
                   <CreateForumForm />
                 </div>
+                
+                {/* Filter Bar */}
+                <div className="flex items-center space-x-2 mt-4">
+                  {filterOptions.map((option) => {
+                    const Icon = option.icon
+                    const isActive = sortBy === option.value
+                    return (
+                      <Link
+                        key={option.value}
+                        href={`/dashboard?sort=${option.value}&page=1`}
+                      >
+                        <Button
+                          variant={isActive ? "default" : "ghost"}
+                          size="sm"
+                          className={
+                            isActive
+                              ? "bg-purple-500 text-white hover:bg-purple-600"
+                              : "text-purple-300 hover:text-white hover:bg-purple-500/20"
+                          }
+                        >
+                          <Icon className="w-4 h-4 mr-2" />
+                          {option.label}
+                        </Button>
+                      </Link>
+                    )
+                  })}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {data.recentPosts.length > 0 ? (
@@ -467,7 +528,7 @@ export default async function DashboardPage({
                       <div className="flex items-center justify-between pt-4 border-t border-gray-700">
                         <div className="flex items-center space-x-2">
                           {data.pagination.hasPrev && (
-                            <Link href={`/dashboard?page=${data.pagination.currentPage - 1}`}>
+                            <Link href={`/dashboard?sort=${sortBy}&page=${data.pagination.currentPage - 1}`}>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -479,7 +540,7 @@ export default async function DashboardPage({
                             </Link>
                           )}
                           {data.pagination.hasNext && (
-                            <Link href={`/dashboard?page=${data.pagination.currentPage + 1}`}>
+                            <Link href={`/dashboard?sort=${sortBy}&page=${data.pagination.currentPage + 1}`}>
                               <Button
                                 variant="ghost"
                                 size="sm"
