@@ -72,6 +72,25 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
       .slice(0, 2)
   }
 
+  const linkifyContent = (text: string) => {
+    // First handle URLs
+    let linkedText = text.replace(
+      /(https?:\/\/[^\s]+|ftp:\/\/[^\s]+|www\.[^\s]+)/gi,
+      (url) => {
+        const href = url.startsWith('www.') ? `https://${url}` : url
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline hover:no-underline transition-colors">${url}</a>`
+      }
+    )
+    
+    // Then handle @usernames
+    linkedText = linkedText.replace(
+      /@([a-zA-Z0-9_]+)/g,
+      '<a href="/user/$1" class="text-purple-400 hover:text-purple-300 underline hover:no-underline transition-colors">@$1</a>'
+    )
+    
+    return linkedText
+  }
+
   const handleVote = async (commentId: string, voteType: "upvote" | "downvote") => {
     if (!currentUser || votingStates[commentId]) return
 
@@ -316,7 +335,10 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                           <span>{formatDate(comment.created_at)}</span>
                         </div>
                       </div>
-                      <div className="text-gray-300 mb-3 whitespace-pre-line leading-relaxed">{comment.content}</div>
+                      <div 
+                        className="text-gray-300 mb-3 whitespace-pre-line leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: linkifyContent(comment.content) }}
+                      />
                       <div className="flex items-center space-x-4">
                         {currentUser && (
                           <Button
