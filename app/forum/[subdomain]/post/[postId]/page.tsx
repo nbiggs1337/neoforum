@@ -316,41 +316,46 @@ export default async function PostPage({ params }: PostPageProps) {
 
         {/* Header */}
         <header className="relative z-10 border-b border-purple-500/30 bg-black/50 backdrop-blur-sm">
-          <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-            <Link href="/" className="flex items-center space-x-2">
-              <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
-                <Zap className="w-5 h-5 text-black" />
-              </div>
-              <h1 className="text-2xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
-                NeoForum
-              </h1>
-            </Link>
-            <nav className="flex items-center space-x-4">
-              <Link href="/explore">
-                <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20">
-                  Explore
-                </Button>
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
+                <div className="w-8 h-8 bg-gradient-to-r from-purple-500 to-cyan-500 rounded-lg flex items-center justify-center">
+                  <Zap className="w-5 h-5 text-black" />
+                </div>
+                <h1 className="text-xl sm:text-2xl font-bold bg-gradient-to-r from-purple-400 to-cyan-400 bg-clip-text text-transparent">
+                  NeoForum
+                </h1>
               </Link>
-              <Link href={`/forum/${subdomain}`}>
-                <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20">
-                  <ArrowLeft className="w-4 h-4 mr-2" />
-                  Back to Forum
-                </Button>
-              </Link>
-              {currentUser ? (
-                <Link href="/dashboard">
-                  <Button className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-black font-semibold">
-                    Dashboard
+              <nav className="flex items-center space-x-2 sm:space-x-4 overflow-hidden">
+                <Link href="/explore" className="hidden sm:block">
+                  <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20">
+                    Explore
                   </Button>
                 </Link>
-              ) : (
-                <Link href="/login">
-                  <Button className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-black font-semibold">
-                    Sign In
+                <Link href={`/forum/${subdomain}`}>
+                  <Button variant="ghost" className="text-purple-300 hover:text-white hover:bg-purple-500/20 text-sm sm:text-base px-2 sm:px-4">
+                    <ArrowLeft className="w-4 h-4 sm:mr-2" />
+                    <span className="hidden sm:inline">Back to Forum</span>
+                    <span className="sm:hidden">Back</span>
                   </Button>
                 </Link>
-              )}
-            </nav>
+                {currentUser ? (
+                  <Link href="/dashboard">
+                    <Button className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-black font-semibold text-sm sm:text-base px-2 sm:px-4">
+                      <span className="hidden sm:inline">Dashboard</span>
+                      <span className="sm:hidden">Dash</span>
+                    </Button>
+                  </Link>
+                ) : (
+                  <Link href="/login">
+                    <Button className="bg-gradient-to-r from-purple-500 to-cyan-500 hover:from-purple-600 hover:to-cyan-600 text-black font-semibold text-sm sm:text-base px-2 sm:px-4">
+                      <span className="hidden sm:inline">Sign In</span>
+                      <span className="sm:hidden">Sign In</span>
+                    </Button>
+                  </Link>
+                )}
+              </nav>
+            </div>
           </div>
         </header>
 
