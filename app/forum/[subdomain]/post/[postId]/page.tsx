@@ -234,6 +234,18 @@ async function incrementViewCount(postId: string) {
   }
 }
 
+// Function to convert URLs in text to clickable links
+function linkifyText(text: string) {
+  // Regex to match URLs (http, https, ftp, and www)
+  const urlRegex = /(https?:\/\/[^\s]+|ftp:\/\/[^\s]+|www\.[^\s]+)/gi
+  
+  return text.replace(urlRegex, (url) => {
+    // Add protocol if missing for www links
+    const href = url.startsWith('www.') ? `https://${url}` : url
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline transition-colors">${url}</a>`
+  })
+}
+
 export default async function PostPage({ params }: PostPageProps) {
   const { subdomain, postId } = params
 
@@ -458,9 +470,12 @@ export default async function PostPage({ params }: PostPageProps) {
                       </div>
                     )}
 
-                    {/* Text content */}
+                    {/* Text content with linkified URLs */}
                     <div className="prose prose-invert max-w-none">
-                      <div className="text-gray-300 leading-relaxed whitespace-pre-line text-base">{post.content}</div>
+                      <div 
+                        className="text-gray-300 leading-relaxed whitespace-pre-line text-base"
+                        dangerouslySetInnerHTML={{ __html: linkifyText(post.content) }}
+                      />
                     </div>
                   </div>
 
