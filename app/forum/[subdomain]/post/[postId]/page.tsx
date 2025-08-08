@@ -27,7 +27,7 @@ async function getPostData(postId: string, subdomain: string) {
     const { data: forumData, error: forumError } = await supabase
       .from("forums")
       .select("*")
-      .eq("subdomain", subdomain)
+      .ilike("subdomain", subdomain)
       .limit(1)
 
     if (forumError) {
@@ -203,31 +203,28 @@ async function incrementViewCount(postId: string) {
   try {
     const supabase = await createServerSupabaseClient()
     
-    // Simple update query to increment view count
-    const { error } = await supabase
+    // Get current view count
+    const { data: currentPost, error: fetchError } = await supabase
       .from("posts")
-      .update({ 
-        view_count: 1 
-      })
+      .select("view_count")
       .eq("id", postId)
-      .is("view_count", null)
+      .single()
 
-    if (error) {
-      // Try to increment existing count
-      const { data: currentPost } = await supabase
-        .from("posts")
-        .select("view_count")
-        .eq("id", postId)
-        .single()
+    if (fetchError) {
+      console.error("View count fetch error:", fetchError)
+      return
+    }
 
-      if (currentPost) {
-        await supabase
-          .from("posts")
-          .update({ 
-            view_count: (currentPost.view_count || 0) + 1 
-          })
-          .eq("id", postId)
-      }
+    // Increment view count
+    const newViewCount = (currentPost?.view_count || 0) + 1
+    
+    const { error: updateError } = await supabase
+      .from("posts")
+      .update({ view_count: newViewCount })
+      .eq("id", postId)
+
+    if (updateError) {
+      console.error("View count update error:", updateError)
     }
   } catch (error) {
     console.error("View count increment error:", error)
