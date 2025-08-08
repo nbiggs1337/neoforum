@@ -154,42 +154,54 @@ async function getDashboardData(page: number = 1): Promise<DashboardData> {
     }
   }
 
-  // Get forums the user has joined - simplified approach with better error handling
+  // Get forums the user has joined - with better error handling
   console.log("Fetching forum memberships for user:", user.id)
   
-  const { data: forumMemberships, error: membershipError } = await supabase
-    .from("forum_members")
-    .select("forum_id")
-    .eq("user_id", user.id)
-
-  console.log("Forum memberships query result:", { 
-    data: forumMemberships, 
-    error: membershipError,
-    count: forumMemberships?.length || 0 
-  })
-
   let joinedForums = []
-  if (forumMemberships && forumMemberships.length > 0) {
-    const forumIds = forumMemberships.map(m => m.forum_id)
-    console.log("Forum IDs to fetch:", forumIds)
-    
-    const { data: forums, error: forumsError } = await supabase
-      .from("forums")
-      .select("id, name, subdomain, description, member_count, post_count")
-      .in("id", forumIds)
-      .eq("status", "active")
+  
+  try {
+    const { data: forumMemberships, error: membershipError } = await supabase
+      .from("forum_members")
+      .select("forum_id")
+      .eq("user_id", user.id)
 
-    console.log("Joined forums query result:", { 
-      data: forums, 
-      error: forumsError,
-      count: forums?.length || 0 
+    console.log("Forum memberships query result:", { 
+      data: forumMemberships, 
+      error: membershipError,
+      count: forumMemberships?.length || 0 
     })
 
-    if (forums && forums.length > 0) {
-      joinedForums = forums
+    if (membershipError) {
+      console.error("Forum membership error:", membershipError)
+      // Continue with empty array instead of failing
+    } else if (forumMemberships && forumMemberships.length > 0) {
+      const forumIds = forumMemberships.map(m => m.forum_id)
+      console.log("Forum IDs to fetch:", forumIds)
+      
+      const { data: forums, error: forumsError } = await supabase
+        .from("forums")
+        .select("id, name, subdomain, description, member_count, post_count")
+        .in("id", forumIds)
+        .eq("status", "active")
+
+      console.log("Joined forums query result:", { 
+        data: forums, 
+        error: forumsError,
+        count: forums?.length || 0 
+      })
+
+      if (forumsError) {
+        console.error("Forums fetch error:", forumsError)
+        // Continue with empty array
+      } else if (forums && forums.length > 0) {
+        joinedForums = forums
+      }
+    } else {
+      console.log("No forum memberships found for user")
     }
-  } else {
-    console.log("No forum memberships found for user")
+  } catch (error) {
+    console.error("Unexpected error fetching forum data:", error)
+    // Continue with empty array
   }
 
   console.log("Final joined forums:", joinedForums)

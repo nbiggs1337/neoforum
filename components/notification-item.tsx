@@ -2,10 +2,12 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useState, useTransition } from 'react'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { MessageSquare, Heart, UserPlus, Reply } from 'lucide-react'
+import { MessageSquare, Heart, UserPlus, Reply, AtSign } from 'lucide-react'
+import { markNotificationAsRead } from '@/app/actions/notifications'
 
 interface NotificationItemProps {
   notification: {
@@ -37,26 +39,10 @@ interface NotificationItemProps {
   }
 }
 
-async function markNotificationAsRead(notificationId: string) {
-  try {
-    const response = await fetch('/api/notifications/mark-read', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ notificationId }),
-    })
-    
-    if (!response.ok) {
-      console.error('Failed to mark notification as read')
-    }
-  } catch (error) {
-    console.error('Error marking notification as read:', error)
-  }
-}
-
 export function NotificationItem({ notification }: NotificationItemProps) {
   const router = useRouter()
+  const [isRead, setIsRead] = useState(notification.is_read)
+  const [isPending, startTransition] = useTransition()
 
   const getIcon = () => {
     switch (notification.type) {
@@ -64,6 +50,8 @@ export function NotificationItem({ notification }: NotificationItemProps) {
         return <MessageSquare className="w-4 h-4" />
       case 'reply_to_comment':
         return <Reply className="w-4 h-4" />
+      case 'mention_in_comment':
+        return <AtSign className="w-4 h-4" />
       case 'post_like':
       case 'comment_like':
         return <Heart className="w-4 h-4" />
@@ -78,6 +66,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
     switch (notification.type) {
       case 'comment_on_post':
       case 'reply_to_comment':
+      case 'mention_in_comment':
         return 'text-blue-400'
       case 'post_like':
       case 'comment_like':
@@ -100,20 +89,26 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   }
 
   const getNotificationLink = () => {
-    // For likes, go to the post or comment that was liked
-    if (notification.type === 'post_like' && notification.related_post_id && notification.related_forum?.subdomain) {
-      return `/forum/${notification.related_forum.subdomain}/post/${notification.related_post_id}`
-    }
-    if (notification.type === 'comment_like' && notification.related_post_id && notification.related_forum?.subdomain) {
-      return `/forum/${notification.related_forum.subdomain}/post/${notification.related_post_id}${notification.related_comment_id ? `#comment-${notification.related_comment_id}` : ''}`
-    }
-    // For other notifications, go to the related content
+    // For all post-related notifications, go to the post
     if (notification.related_post_id && notification.related_forum?.subdomain) {
-      return `/forum/${notification.related_forum.subdomain}/post/${notification.related_post_id}`
+      const baseUrl = `/forum/${notification.related_forum.subdomain}/post/${notification.related_post_id}`
+      
+      // For comment-specific notifications, add the comment anchor
+      if (notification.related_comment_id && 
+          (notification.type === 'mention_in_comment' || 
+           notification.type === 'reply_to_comment' || 
+           notification.type === 'comment_like')) {
+        return `${baseUrl}#comment-${notification.related_comment_id}`
+      }
+      
+      return baseUrl
     }
+    
+    // For user-related notifications, go to user profile
     if (notification.related_user?.username) {
       return `/user/${notification.related_user.username}`
     }
+    
     return '#'
   }
 
@@ -125,9 +120,21 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   }
 
   const handleNotificationClick = async () => {
-    if (!notification.is_read) {
-      await markNotificationAsRead(notification.id)
+    if (!notification.is_read && !isPending) {
+      startTransition(async () => {
+        try {
+          const result = await markNotificationAsRead(notification.id)
+          if (result.success) {
+            setIsRead(true)
+          } else {
+            console.error('Failed to mark notification as read:', result.error)
+          }
+        } catch (error) {
+          console.error('Error marking notification as read:', error)
+        }
+      })
     }
+    
     const link = getNotificationLink()
     if (link !== '#') {
       router.push(link)
@@ -156,10 +163,10 @@ export function NotificationItem({ notification }: NotificationItemProps) {
   return (
     <Card 
       className={`transition-all duration-200 hover:bg-gray-800/50 cursor-pointer ${
-        notification.is_read 
+        isRead 
           ? 'bg-gray-900/30 border-gray-700/50' 
           : 'bg-purple-900/20 border-purple-500/30'
-      }`}
+      } ${isPending ? 'opacity-50' : ''}`}
       onClick={handleNotificationClick}
     >
       <CardContent className="p-4">
@@ -183,7 +190,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
               <span className="font-medium text-white text-sm">
                 {notification.title || 'Notification'}
               </span>
-              {!notification.is_read && (
+              {!isRead && (
                 <Badge variant="secondary" className="bg-purple-500/20 text-purple-300 text-xs">
                   New
                 </Badge>
@@ -191,7 +198,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
             </div>
             
             <p className="text-gray-300 text-sm mb-2 line-clamp-2">
-              {notification.related_user && (notification.type === 'post_like' || notification.type === 'comment_like') ? (
+              {notification.related_user && (notification.type === 'post_like' || notification.type === 'comment_like' || notification.type === 'mention_in_comment' || notification.type === 'reply_to_comment') ? (
                 <>
                   <Link 
                     href={getUserProfileLink()} 
@@ -201,7 +208,7 @@ export function NotificationItem({ notification }: NotificationItemProps) {
                     {notification.related_user.display_name || notification.related_user.username}
                   </Link>
                   {' '}
-                  {notification.message?.replace(/^[^:]*:\s*/, '') || 'liked your content'}
+                  {notification.message?.replace(/^[^:]*:\s*/, '') || 'interacted with your content'}
                 </>
               ) : (
                 notification.message || 'You have a new notification'

@@ -2,6 +2,7 @@
 
 import { createServerSupabaseClient } from '@/lib/supabase'
 import { getCurrentUser } from '@/lib/auth'
+import { revalidatePath } from 'next/cache'
 
 interface CreateNotificationParams {
   userId: string
@@ -109,6 +110,7 @@ export async function markNotificationAsRead(notificationId: string) {
   try {
     const currentUser = await getCurrentUser()
     if (!currentUser) {
+      console.error('No current user found')
       return { success: false, error: 'Authentication required' }
     }
 
@@ -125,6 +127,9 @@ export async function markNotificationAsRead(notificationId: string) {
       return { success: false, error: error.message }
     }
 
+    // Revalidate the notifications page
+    revalidatePath('/notifications')
+    
     return { success: true }
   } catch (error) {
     console.error('Mark notification as read error:', error)
@@ -152,6 +157,9 @@ export async function markAllNotificationsAsRead() {
       return { success: false, error: error.message }
     }
 
+    // Revalidate the notifications page
+    revalidatePath('/notifications')
+    
     return { success: true }
   } catch (error) {
     console.error('Mark all notifications as read error:', error)
