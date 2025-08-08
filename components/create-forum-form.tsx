@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, AlertCircle } from "lucide-react"
+import { Plus, AlertCircle } from 'lucide-react'
 import { createForum } from "@/app/actions/forum"
 import { FORUM_CATEGORIES } from "@/lib/constants"
 
@@ -99,18 +99,18 @@ export function CreateForumForm() {
                 Subdomain *
               </Label>
               <div className="flex">
+                <div className="bg-gray-800 border border-r-0 border-purple-500/30 px-3 py-2 text-gray-400 rounded-l-md">
+                  neoforum.app/forum/
+                </div>
                 <Input
                   id="subdomain"
                   name="subdomain"
                   placeholder="yourforum"
-                  className="bg-black/50 border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 rounded-r-none"
+                  className="bg-black/50 border-purple-500/30 text-white placeholder-gray-500 focus:border-purple-500 rounded-r-md rounded-l-none"
                   required
                   pattern="[a-z0-9-]+"
                   title="Only lowercase letters, numbers, and hyphens allowed"
                 />
-                <div className="bg-gray-800 border border-l-0 border-purple-500/30 px-3 py-2 text-gray-400 rounded-r-md">
-                  .neoforum.com
-                </div>
               </div>
             </div>
           </div>
