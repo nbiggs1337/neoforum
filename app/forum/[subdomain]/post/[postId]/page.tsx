@@ -23,41 +23,67 @@ async function getPostData(postId: string, subdomain: string) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Get post with author and forum info
-    const { data: post, error } = await supabase
+    // First, get the forum to verify it exists and get its ID
+    const forumQuery = supabase
+      .from("forums")
+      .select("id, name, subdomain, description, category")
+      .eq("subdomain", subdomain)
+      .eq("status", "active")
+      .single()
+
+    const { data: forum, error: forumError } = await forumQuery
+
+    if (forumError) {
+      console.error("Forum fetch error:", forumError)
+      return null
+    }
+
+    if (!forum) {
+      console.error("Forum not found")
+      return null
+    }
+
+    // Then get the post with basic fields only
+    const postQuery = supabase
       .from("posts")
-      .select(`
-        *,
-        author:profiles!posts_author_id_fkey(
-          id,
-          username,
-          display_name,
-          avatar_url,
-          created_at
-        ),
-        forum:forums!posts_forum_id_fkey(
-          id,
-          name,
-          subdomain,
-          description,
-          category
-        )
-      `)
+      .select("id, title, content, author_id, forum_id, status, upvotes, downvotes, comment_count, view_count, is_pinned, is_locked, image_urls, created_at, updated_at")
       .eq("id", postId)
+      .eq("forum_id", forum.id)
       .eq("status", "published")
       .single()
 
-    if (error) {
-      console.error("Post fetch error:", error)
+    const { data: post, error: postError } = await postQuery
+
+    if (postError) {
+      console.error("Post fetch error:", postError)
       return null
     }
 
-    // Verify the post belongs to the correct forum
-    if (post.forum.subdomain !== subdomain) {
+    if (!post) {
+      console.error("Post not found")
       return null
     }
 
-    return post
+    // Get author info separately with basic fields only
+    const authorQuery = supabase
+      .from("profiles")
+      .select("id, username, display_name, avatar_url, created_at")
+      .eq("id", post.author_id)
+      .single()
+
+    const { data: author, error: authorError } = await authorQuery
+
+    if (authorError && authorError.code !== 'PGRST116') {
+      console.error("Author fetch error:", authorError)
+    }
+
+    // Combine the data
+    return {
+      ...post,
+      author: author || null,
+      forum: forum
+    }
+
   } catch (error) {
     console.error("Post data fetch error:", error)
     return null
@@ -68,67 +94,61 @@ async function getComments(postId: string) {
   try {
     const supabase = await createServerSupabaseClient()
 
-    // Use a more robust approach to handle the query
-    let query = supabase
+    // Get comments with basic fields only
+    const commentsQuery = supabase
       .from("comments")
-      .select(`
-        id,
-        content,
-        created_at,
-        upvotes,
-        downvotes,
-        post_id,
-        author_id,
-        author:profiles!comments_author_id_fkey(
-          id,
-          username,
-          display_name,
-          avatar_url
-        )
-      `)
+      .select("id, content, created_at, upvotes, downvotes, post_id, author_id")
       .eq("post_id", postId)
       .order("created_at", { ascending: true })
 
-    // Try to filter by is_deleted if the column exists
-    try {
-      const { data: comments, error } = await query.eq("is_deleted", false)
-      
-      if (error) {
-        // If filtering by is_deleted fails, try without it
-        console.log("Trying query without is_deleted filter")
-        const { data: fallbackComments, error: fallbackError } = await supabase
-          .from("comments")
-          .select(`
-            id,
-            content,
-            created_at,
-            upvotes,
-            downvotes,
-            post_id,
-            author_id,
-            author:profiles!comments_author_id_fkey(
-              id,
-              username,
-              display_name,
-              avatar_url
-            )
-          `)
-          .eq("post_id", postId)
-          .order("created_at", { ascending: true })
+    const { data: comments, error } = await commentsQuery
 
-        if (fallbackError) {
-          console.error("Fallback comments fetch error:", fallbackError)
-          return []
-        }
-
-        return fallbackComments || []
-      }
-
-      return comments || []
-    } catch (queryError) {
-      console.error("Comments query error:", queryError)
+    if (error) {
+      console.error("Comments fetch error:", error)
       return []
     }
+
+    if (!comments || comments.length === 0) {
+      return []
+    }
+
+    // Get author info for each comment with basic fields only
+    const authorIds = [...new Set(comments.map(c => c.author_id))]
+    
+    if (authorIds.length === 0) {
+      return comments.map(comment => ({
+        ...comment,
+        author: null
+      }))
+    }
+
+    const authorsQuery = supabase
+      .from("profiles")
+      .select("id, username, display_name, avatar_url")
+      .in("id", authorIds)
+
+    const { data: authors, error: authorsError } = await authorsQuery
+
+    if (authorsError) {
+      console.error("Comment authors fetch error:", authorsError)
+      // Return comments without author info rather than failing
+      return comments.map(comment => ({
+        ...comment,
+        author: null
+      }))
+    }
+
+    // Map authors to comments
+    const authorsMap = (authors || []).reduce((acc, author) => {
+      acc[author.id] = author
+      return acc
+    }, {} as Record<string, any>)
+
+    return comments.map(comment => ({
+      ...comment,
+      author: authorsMap[comment.author_id] || null
+    }))
+
   } catch (error) {
     console.error("Comments data fetch error:", error)
     return []
@@ -142,18 +162,30 @@ async function getUserVotes(postId: string, userId?: string) {
     const supabase = await createServerSupabaseClient()
 
     // Get user's vote on the post
-    const { data: postVote } = await supabase
+    const postVoteQuery = supabase
       .from("post_votes")
       .select("vote_type")
       .eq("post_id", postId)
       .eq("user_id", userId)
       .single()
 
+    const { data: postVote, error: postVoteError } = await postVoteQuery
+
+    if (postVoteError && postVoteError.code !== 'PGRST116') {
+      console.error("Post vote fetch error:", postVoteError)
+    }
+
     // Get user's votes on comments
-    const { data: commentVotes } = await supabase
+    const commentVotesQuery = supabase
       .from("comment_votes")
       .select("comment_id, vote_type")
       .eq("user_id", userId)
+
+    const { data: commentVotes, error: commentVotesError } = await commentVotesQuery
+
+    if (commentVotesError) {
+      console.error("Comment votes fetch error:", commentVotesError)
+    }
 
     const commentVotesMap =
       commentVotes?.reduce(
@@ -343,22 +375,28 @@ export default async function PostPage({ params }: PostPageProps) {
                       <h1 className="text-3xl font-bold text-white mb-4 leading-tight">{post.title}</h1>
                       <div className="flex items-center space-x-4 text-sm text-gray-400">
                         <div className="flex items-center space-x-2">
-                          <Link href={`/user/${post.author?.username}`}>
-                            <Avatar className="w-8 h-8 border border-purple-500/30 hover:border-purple-400/50 transition-colors cursor-pointer">
-                              <AvatarImage src={post.author?.avatar_url || "/placeholder.svg"} />
-                              <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black text-xs font-bold">
-                                {getInitials(post.author?.username || "U")}
-                              </AvatarFallback>
-                            </Avatar>
-                          </Link>
+                          {post.author && (
+                            <Link href={`/user/${post.author.username}`}>
+                              <Avatar className="w-8 h-8 border border-purple-500/30 hover:border-purple-400/50 transition-colors cursor-pointer">
+                                <AvatarImage src={post.author.avatar_url || "/placeholder.svg"} />
+                                <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black text-xs font-bold">
+                                  {getInitials(post.author.username || "U")}
+                                </AvatarFallback>
+                              </Avatar>
+                            </Link>
+                          )}
                           <div>
                             <div className="flex items-center space-x-2">
-                              <Link 
-                                href={`/user/${post.author?.username}`}
-                                className="text-white font-medium hover:text-purple-300 transition-colors"
-                              >
-                                {post.author?.username}
-                              </Link>
+                              {post.author ? (
+                                <Link 
+                                  href={`/user/${post.author.username}`}
+                                  className="text-white font-medium hover:text-purple-300 transition-colors"
+                                >
+                                  {post.author.username}
+                                </Link>
+                              ) : (
+                                <span className="text-gray-500">Unknown User</span>
+                              )}
                               <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
                             </div>
                           </div>
@@ -535,31 +573,46 @@ export default async function PostPage({ params }: PostPageProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex items-start space-x-3">
-                  <Link href={`/user/${post.author?.username}`}>
-                    <Avatar className="w-12 h-12 border border-purple-500/30 hover:border-purple-400/50 transition-colors cursor-pointer">
-                      <AvatarImage src={post.author?.avatar_url || "/placeholder.svg"} />
-                      <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black font-bold">
-                        {getInitials(post.author?.username || "U")}
-                      </AvatarFallback>
-                    </Avatar>
-                  </Link>
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <Link 
-                        href={`/user/${post.author?.username}`}
-                        className="font-semibold text-white hover:text-purple-300 transition-colors"
-                      >
-                        {post.author?.username}
+                  {post.author ? (
+                    <>
+                      <Link href={`/user/${post.author.username}`}>
+                        <Avatar className="w-12 h-12 border border-purple-500/30 hover:border-purple-400/50 transition-colors cursor-pointer">
+                          <AvatarImage src={post.author.avatar_url || "/placeholder.svg"} />
+                          <AvatarFallback className="bg-gradient-to-br from-purple-500 to-cyan-500 text-black font-bold">
+                            {getInitials(post.author.username || "U")}
+                          </AvatarFallback>
+                        </Avatar>
                       </Link>
-                      <div className="w-2 h-2 bg-green-400 rounded-full"></div>
-                    </div>
-                    <div className="space-y-1 text-sm text-gray-400">
-                      <div className="flex items-center space-x-1">
-                        <Calendar className="w-3 h-3" />
-                        <span>Joined {formatDate(post.author?.created_at || post.created_at)}</span>
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 mb-2">
+                          <Link 
+                            href={`/user/${post.author.username}`}
+                            className="font-semibold text-white hover:text-purple-300 transition-colors"
+                          >
+                            {post.author.username}
+                          </Link>
+                          <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                        </div>
+                        <div className="space-y-1 text-sm text-gray-400">
+                          <div className="flex items-center space-x-1">
+                            <Calendar className="w-3 h-3" />
+                            <span>Joined {formatDate(post.author.created_at || post.created_at)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="flex items-center space-x-3">
+                      <Avatar className="w-12 h-12 border border-gray-500/30">
+                        <AvatarFallback className="bg-gray-600 text-gray-300">
+                          ?
+                        </AvatarFallback>
+                      </Avatar>
+                      <div>
+                        <span className="text-gray-500">Unknown User</span>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

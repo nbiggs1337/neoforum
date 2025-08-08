@@ -11,7 +11,7 @@ export async function getCurrentUser(): Promise<User | null> {
     } = await supabase.auth.getUser()
 
     if (error || !user) {
-      console.log("No authenticated user found")
+      // Don't log this as an error since it's normal for unauthenticated users
       return null
     }
 
