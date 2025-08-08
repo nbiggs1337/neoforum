@@ -9,6 +9,7 @@ import { Separator } from "@/components/ui/separator"
 import { MessageSquare, Reply, ArrowUp, ArrowDown, Flag, Heart, Clock } from 'lucide-react'
 import { createComment } from "@/app/actions/comment"
 import { voteOnComment } from "@/app/actions/comment-vote"
+import Link from "next/link"
 
 interface Comment {
   id: string
@@ -327,7 +328,9 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex items-center space-x-2">
-                          <span className="font-medium text-white">{comment.author.username}</span>
+                          <Link href={`/user/${comment.author.username}`} className="font-medium text-white hover:text-purple-300 transition-colors">
+                            {comment.author.username}
+                          </Link>
                           <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
                         </div>
                         <div className="flex items-center space-x-1 text-xs text-gray-500">
