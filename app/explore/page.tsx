@@ -6,11 +6,27 @@ import { TrendingUp, Users, MessageSquare, Plus } from 'lucide-react'
 import Link from "next/link"
 import { ExploreClient } from "@/components/explore-client"
 
-export default async function ExplorePage() {
+const FORUMS_PER_PAGE = 30
+
+export default async function ExplorePage({
+  searchParams,
+}: {
+  searchParams: { page?: string }
+}) {
   const supabase = await createServerSupabaseClient()
   const currentUser = await getCurrentUser()
+  
+  const page = parseInt(searchParams.page || '1', 10)
+  const offset = (page - 1) * FORUMS_PER_PAGE
 
-  // Get all public forums
+  // Get total count of forums
+  const { count: totalForums } = await supabase
+    .from("forums")
+    .select("*", { count: 'exact', head: true })
+    .eq("status", "active")
+    .eq("is_private", false)
+
+  // Get paginated forums
   const { data: forums } = await supabase
     .from("forums")
     .select(`
@@ -27,6 +43,7 @@ export default async function ExplorePage() {
     .eq("status", "active")
     .eq("is_private", false)
     .order("member_count", { ascending: false })
+    .range(offset, offset + FORUMS_PER_PAGE - 1)
 
   // Get owner usernames separately
   let forumsWithOwners = forums || []
@@ -83,6 +100,8 @@ export default async function ExplorePage() {
     .select("*", { count: 'exact', head: true })
     .eq("status", "published")
 
+  const totalPages = Math.ceil((totalForums || 0) / FORUMS_PER_PAGE)
+
   return (
     <div className="min-h-screen bg-black text-white">
       {/* Cyberpunk background */}
@@ -134,7 +153,7 @@ export default async function ExplorePage() {
                   <TrendingUp className="w-6 h-6 text-purple-400" />
                 </div>
                 <div>
-                  <p className="text-2xl font-bold text-white">{forumsWithOwners?.length || 0}</p>
+                  <p className="text-2xl font-bold text-white">{totalForums || 0}</p>
                   <p className="text-gray-400">Active Forums</p>
                 </div>
               </div>
@@ -179,6 +198,9 @@ export default async function ExplorePage() {
           initialForums={processedForums} 
           currentUserId={currentUser?.id} 
           isAuthenticated={!!currentUser}
+          currentPage={page}
+          totalPages={totalPages}
+          totalForums={totalForums || 0}
         />
       </div>
     </div>

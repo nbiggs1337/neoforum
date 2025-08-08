@@ -5,8 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Users, MessageSquare, TrendingUp, Search } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Users, MessageSquare, TrendingUp, Search, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from "next/link"
+import { useRouter, useSearchParams } from "next/navigation"
 import { JoinForumButton } from "./join-forum-button"
 import { FollowForumButton } from "./follow-forum-button"
 
@@ -33,13 +35,25 @@ interface ExploreClientProps {
   initialForums: Forum[]
   currentUserId?: string
   isAuthenticated: boolean
+  currentPage: number
+  totalPages: number
+  totalForums: number
 }
 
-export function ExploreClient({ initialForums, currentUserId, isAuthenticated }: ExploreClientProps) {
+export function ExploreClient({ 
+  initialForums, 
+  currentUserId, 
+  isAuthenticated, 
+  currentPage, 
+  totalPages, 
+  totalForums 
+}: ExploreClientProps) {
   const [forums, setForums] = useState(initialForums)
   const [searchTerm, setSearchTerm] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
   const [sortBy, setSortBy] = useState("members")
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   // Get unique categories
   const categories = Array.from(new Set(forums.map((forum) => forum.category)))
@@ -67,6 +81,15 @@ export function ExploreClient({ initialForums, currentUserId, isAuthenticated }:
           return 0
       }
     })
+
+  const handlePageChange = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set('page', page.toString())
+    router.push(`/explore?${params.toString()}`)
+  }
+
+  const startIndex = (currentPage - 1) * 30 + 1
+  const endIndex = Math.min(currentPage * 30, totalForums)
 
   return (
     <div className="space-y-6">
@@ -110,6 +133,16 @@ export function ExploreClient({ initialForums, currentUserId, isAuthenticated }:
           </div>
         </CardContent>
       </Card>
+
+      {/* Pagination Info */}
+      <div className="flex items-center justify-between text-sm text-gray-400">
+        <div>
+          Showing {startIndex}-{endIndex} of {totalForums.toLocaleString()} forums
+        </div>
+        <div>
+          Page {currentPage} of {totalPages}
+        </div>
+      </div>
 
       {/* Forums Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -176,6 +209,69 @@ export function ExploreClient({ initialForums, currentUserId, isAuthenticated }:
             <TrendingUp className="w-16 h-16 text-gray-600 mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-400 mb-2">No forums found</h3>
             <p className="text-gray-500">Try adjusting your search or filters</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pagination Controls */}
+      {totalPages > 1 && (
+        <Card className="bg-black/50 border-purple-500/30 backdrop-blur-sm">
+          <CardContent className="p-6">
+            <div className="flex items-center justify-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage - 1)}
+                disabled={currentPage === 1}
+                className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4 mr-1" />
+                Previous
+              </Button>
+              
+              {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                  let pageNum
+                  if (totalPages <= 5) {
+                    pageNum = i + 1
+                  } else if (currentPage <= 3) {
+                    pageNum = i + 1
+                  } else if (currentPage >= totalPages - 2) {
+                    pageNum = totalPages - 4 + i
+                  } else {
+                    pageNum = currentPage - 2 + i
+                  }
+                  
+                  return (
+                    <Button
+                      key={pageNum}
+                      variant={currentPage === pageNum ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => handlePageChange(pageNum)}
+                      className={
+                        currentPage === pageNum
+                          ? "bg-gradient-to-r from-purple-500 to-cyan-500 text-white"
+                          : "border-purple-500/50 text-purple-300 hover:bg-purple-500/20 bg-transparent"
+                      }
+                    >
+                      {pageNum}
+                    </Button>
+                  )
+                })}
+              </div>
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => handlePageChange(currentPage + 1)}
+                disabled={currentPage === totalPages}
+                className="border-purple-500/50 text-purple-300 hover:bg-purple-500/20 bg-transparent disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+                <ChevronRight className="w-4 h-4 ml-1" />
+              </Button>
+            </div>
           </CardContent>
         </Card>
       )}
