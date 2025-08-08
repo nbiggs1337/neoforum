@@ -100,7 +100,7 @@ export function CreateForumForm() {
               </Label>
               <div className="flex">
                 <div className="bg-gray-800 border border-r-0 border-purple-500/30 px-3 py-2 text-gray-400 rounded-l-md">
-                  neoforum.app/forum/
+                  neoforum.app/
                 </div>
                 <Input
                   id="subdomain"
