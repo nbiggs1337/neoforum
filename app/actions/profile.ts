@@ -25,7 +25,7 @@ export async function updateProfile(formData: FormData) {
     }
 
     // Validate username for spaces
-    if (username.includes(' ')) {
+    if (username.includes(" ")) {
       return { error: "Username cannot contain spaces" }
     }
 
@@ -178,5 +178,39 @@ export async function uploadAvatar(formData: FormData) {
   } catch (error) {
     console.error("Upload error:", error)
     return { error: error instanceof Error ? error.message : "Failed to upload avatar" }
+  }
+}
+
+export async function updateAvatarUrl(avatarUrl: string) {
+  try {
+    const supabase = await createServerSupabaseClient()
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      throw new Error("Not authenticated")
+    }
+
+    const { error } = await supabase
+      .from("profiles")
+      .update({
+        avatar_url: avatarUrl,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", user.id)
+
+    if (error) {
+      console.error("Update avatar_url error:", error)
+      return { error: "Failed to update avatar" }
+    }
+
+    revalidatePath("/settings")
+    return { success: true }
+  } catch (error) {
+    console.error("Update avatar_url action error:", error)
+    return { error: error instanceof Error ? error.message : "Failed to update avatar" }
   }
 }

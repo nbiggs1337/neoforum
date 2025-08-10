@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { updateProfile, uploadAvatar } from "@/app/actions/profile"
-import { Camera, Upload, X, Check } from 'lucide-react'
+import { updateProfile, updateAvatarUrl } from "@/app/actions/profile"
+import { Camera, Upload, X, Check } from "lucide-react"
+import { getSupabaseBrowserClient } from "@/lib/supabase-browser"
 
 interface ProfileFormProps {
   user: any
@@ -75,15 +76,52 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
     setIsLoading(true)
     setMessage("")
 
-    const formData = new FormData()
-    formData.append("avatar", selectedFile)
+    try {
+      // Validate again just in case
+      if (selectedFile.size > 5 * 1024 * 1024) {
+        setMessage("File size must be less than 5MB")
+        setIsLoading(false)
+        return
+      }
+      if (!selectedFile.type.startsWith("image/")) {
+        setMessage("File must be an image")
+        setIsLoading(false)
+        return
+      }
 
-    const result = await uploadAvatar(formData)
+      const supabase = getSupabaseBrowserClient()
 
-    if (result.error) {
-      setMessage(result.error)
-    } else if (result.avatarUrl) {
-      setAvatarUrl(result.avatarUrl)
+      const fileExt = selectedFile.name.split(".").pop() || "png"
+      const fileName = `avatar-${Date.now()}.${fileExt}`
+      const filePath = `${user.id}/${fileName}`
+
+      // Upload directly from the browser to Supabase Storage
+      const { error: uploadError } = await supabase.storage.from("user-uploads").upload(filePath, selectedFile, {
+        upsert: true,
+        contentType: selectedFile.type,
+      })
+
+      if (uploadError) {
+        console.error("Storage upload error:", uploadError)
+        setMessage(`Failed to upload file: ${uploadError.message}`)
+        setIsLoading(false)
+        return
+      }
+
+      // Get public URL
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from("user-uploads").getPublicUrl(filePath)
+
+      // Persist avatar URL via a small server action (no large payload)
+      const result = await updateAvatarUrl(publicUrl)
+      if ((result as any)?.error) {
+        setMessage((result as any).error)
+        setIsLoading(false)
+        return
+      }
+
+      setAvatarUrl(publicUrl)
       setPreviewUrl("")
       setSelectedFile(null)
       setMessage("Avatar updated successfully!")
@@ -91,11 +129,14 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = ""
       }
-      // Force page refresh to show updated avatar
+      // Refresh to reflect in all places
       window.location.reload()
+    } catch (err) {
+      console.error("Client upload error:", err)
+      setMessage("Failed to upload avatar")
+    } finally {
+      setIsLoading(false)
     }
-
-    setIsLoading(false)
   }
 
   function cancelUpload() {
@@ -195,12 +236,12 @@ export function ProfileForm({ user, profile }: ProfileFormProps) {
               className="bg-gray-900/50 border-gray-700 text-white focus:border-purple-500"
               required
               onKeyDown={(e) => {
-                if (e.key === ' ') {
+                if (e.key === " ") {
                   e.preventDefault()
                 }
               }}
               onChange={(e) => {
-                e.target.value = e.target.value.replace(/\s/g, '')
+                e.target.value = e.target.value.replace(/\s/g, "")
               }}
             />
           </div>
