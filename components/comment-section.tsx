@@ -1,4 +1,4 @@
-'use client'
+"use client"
 
 import { useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Separator } from "@/components/ui/separator"
-import { MessageSquare, Reply, ArrowUp, ArrowDown, Flag, Heart, Clock } from 'lucide-react'
+import { MessageSquare, Reply, ArrowUp, ArrowDown, Flag, Heart, Clock } from "lucide-react"
 import { createComment } from "@/app/actions/comment"
 import { voteOnComment } from "@/app/actions/comment-vote"
 import Link from "next/link"
@@ -75,20 +75,17 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
 
   const linkifyContent = (text: string) => {
     // First handle URLs
-    let linkedText = text.replace(
-      /(https?:\/\/[^\s]+|ftp:\/\/[^\s]+|www\.[^\s]+)/gi,
-      (url) => {
-        const href = url.startsWith('www.') ? `https://${url}` : url
-        return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline hover:no-underline transition-colors">${url}</a>`
-      }
-    )
-    
+    let linkedText = text.replace(/(https?:\/\/[^\s]+|ftp:\/\/[^\s]+|www\.[^\s]+)/gi, (url) => {
+      const href = url.startsWith("www.") ? `https://${url}` : url
+      return `<a href="${href}" target="_blank" rel="noopener noreferrer" class="text-cyan-400 hover:text-cyan-300 underline hover:no-underline transition-colors">${url}</a>`
+    })
+
     // Then handle @usernames
     linkedText = linkedText.replace(
-      /@([a-zA-Z0-9_]+)/g,
-      '<a href="/user/$1" class="text-purple-400 hover:text-purple-300 underline hover:no-underline transition-colors">@$1</a>'
+      /@([a-zA-Z0-9_-]+)/g,
+      '<a href="/user/$1" class="text-purple-400 hover:text-purple-300 underline hover:no-underline transition-colors">@$1</a>',
     )
-    
+
     return linkedText
   }
 
@@ -99,7 +96,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
     const newVoteType = currentVote === voteType ? null : voteType
 
     // Set voting state to prevent double clicks
-    setVotingStates(prev => ({ ...prev, [commentId]: true }))
+    setVotingStates((prev) => ({ ...prev, [commentId]: true }))
 
     // Store original state for rollback
     const originalState = commentVotes[commentId] || { upvotes: 0, downvotes: 0, userVote: null }
@@ -130,7 +127,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
 
     try {
       const result = await voteOnComment(commentId, newVoteType)
-      
+
       if (result.success) {
         // Update with server response
         setCommentVotes((prev) => ({
@@ -158,7 +155,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
       }))
     } finally {
       // Clear voting state
-      setVotingStates(prev => ({ ...prev, [commentId]: false }))
+      setVotingStates((prev) => ({ ...prev, [commentId]: false }))
     }
   }
 
@@ -328,7 +325,10 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                           </AvatarFallback>
                         </Avatar>
                         <div className="flex items-center space-x-2">
-                          <Link href={`/user/${comment.author.username}`} className="font-medium text-white hover:text-purple-300 transition-colors">
+                          <Link
+                            href={`/user/${comment.author.username}`}
+                            className="font-medium text-white hover:text-purple-300 transition-colors"
+                          >
                             {comment.author.username}
                           </Link>
                           <div className="w-1.5 h-1.5 bg-green-400 rounded-full"></div>
@@ -338,7 +338,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                           <span>{formatDate(comment.created_at)}</span>
                         </div>
                       </div>
-                      <div 
+                      <div
                         className="text-gray-300 mb-3 whitespace-pre-line leading-relaxed"
                         dangerouslySetInnerHTML={{ __html: linkifyContent(comment.content) }}
                       />
