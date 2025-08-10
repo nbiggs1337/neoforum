@@ -232,10 +232,19 @@ export async function getAllReports() {
         try {
           const reportWithDetails: any = { ...report }
 
+          if (report.reporter_id) {
+            const { data: reporter } = await supabase
+              .from("profiles")
+              .select("username")
+              .eq("id", report.reporter_id)
+              .single()
+            reportWithDetails.reporter_username = reporter?.username || "Unknown"
+          }
+
           if (report.post_id) {
             const { data: post } = await supabase
               .from("posts")
-              .select("title, content, author_id, forum_id")
+              .select("title, forum_id")
               .eq("id", report.post_id)
               .single()
             reportWithDetails.post_title = post?.title || "Unknown Post"
@@ -246,49 +255,35 @@ export async function getAllReports() {
           } else if (report.comment_id) {
             const { data: comment } = await supabase
               .from("comments")
-              .select("content, author_id, post_id")
+              .select("content, post_id")
               .eq("id", report.comment_id)
               .single()
-            reportWithDetails.comment_content = comment?.content || "Unknown Comment"
-            if (comment?.post_id) {
-              const { data: post } = await supabase
-                .from("posts")
-                .select("id, forum_id")
-                .eq("id", comment.post_id)
-                .single()
-              reportWithDetails.post_id = post?.id
-              if (post?.forum_id) {
-                const { data: forum } = await supabase
-                  .from("forums")
-                  .select("subdomain")
-                  .eq("id", post.forum_id)
+
+            if (comment) {
+              reportWithDetails.comment_content = comment.content || "Comment content not found."
+              if (comment.post_id) {
+                reportWithDetails.post_id = comment.post_id
+                const { data: post } = await supabase
+                  .from("posts")
+                  .select("forum_id")
+                  .eq("id", comment.post_id)
                   .single()
-                reportWithDetails.forum_subdomain = forum?.subdomain
+                if (post?.forum_id) {
+                  const { data: forum } = await supabase
+                    .from("forums")
+                    .select("subdomain")
+                    .eq("id", post.forum_id)
+                    .single()
+                  reportWithDetails.forum_subdomain = forum?.subdomain
+                }
               }
             }
           }
 
-          if (report.reporter_id) {
-            const { data: reporter } = await supabase
-              .from("profiles")
-              .select("username, display_name")
-              .eq("id", report.reporter_id)
-              .single()
-            reportWithDetails.reporter_username = reporter?.username || "Unknown"
-          }
-
-          if (report.reviewed_by) {
-            const { data: reviewer } = await supabase
-              .from("profiles")
-              .select("username, display_name")
-              .eq("id", report.reviewed_by)
-              .single()
-            reportWithDetails.reviewer_username = reviewer?.username || "Unknown"
-          }
-
           reportsWithDetails.push(reportWithDetails)
         } catch (detailError) {
-          reportsWithDetails.push(report)
+          console.error(`Failed to process report ${report.id}:`, detailError)
+          reportsWithDetails.push(report) // Push original report on error
         }
       }
       return reportsWithDetails
