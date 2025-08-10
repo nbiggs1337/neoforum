@@ -1,31 +1,37 @@
-'use client'
+"use client"
 
-import { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Flag } from 'lucide-react'
-import { reportPost } from '@/app/actions/report'
+import type React from "react"
+
+import { useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Flag } from "lucide-react"
+import { createReport } from "@/app/actions/report"
 
 interface ReportDialogProps {
-  postId: string
+  postId?: string
+  commentId?: string
+  trigger?: React.ReactNode
   disabled?: boolean
 }
 
-export function ReportDialog({ postId, disabled = false }: ReportDialogProps) {
+export function ReportDialog({ postId, commentId, trigger, disabled = false }: ReportDialogProps) {
   const [open, setOpen] = useState(false)
-  const [reason, setReason] = useState('')
-  const [details, setDetails] = useState('')
+  const [reason, setReason] = useState("")
+  const [details, setDetails] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null)
+  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null)
+
+  const targetType = postId ? "Post" : "Comment"
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (!reason) {
-      setMessage({ type: 'error', text: 'Please select a reason for reporting' })
+      setMessage({ type: "error", text: "Please select a reason for reporting" })
       return
     }
 
@@ -33,43 +39,61 @@ export function ReportDialog({ postId, disabled = false }: ReportDialogProps) {
     setMessage(null)
 
     const formData = new FormData()
-    formData.append('postId', postId)
-    formData.append('reason', reason)
-    formData.append('details', details)
+    if (postId) {
+      formData.append("postId", postId)
+    }
+    if (commentId) {
+      formData.append("commentId", commentId)
+    }
+    formData.append("reason", reason)
+    formData.append("details", details)
 
-    const result = await reportPost(formData)
+    const result = await createReport(formData)
 
     if (result.success) {
-      setMessage({ type: 'success', text: result.message || 'Report submitted successfully' })
-      setReason('')
-      setDetails('')
+      setMessage({ type: "success", text: result.message || "Report submitted successfully" })
+      setReason("")
+      setDetails("")
       setTimeout(() => {
         setOpen(false)
         setMessage(null)
       }, 2000)
     } else {
-      setMessage({ type: 'error', text: result.error || 'Failed to submit report' })
+      setMessage({ type: "error", text: result.error || "Failed to submit report" })
     }
 
     setIsSubmitting(false)
   }
 
+  const defaultTrigger = (
+    <Button
+      variant="ghost"
+      size="sm"
+      disabled={disabled}
+      className="text-gray-400 hover:text-red-400 hover:bg-red-400/10"
+    >
+      <Flag className="h-4 w-4 mr-1" />
+      Report
+    </Button>
+  )
+
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={disabled}
-          className="text-gray-400 hover:text-red-400 hover:bg-red-400/10"
-        >
-          <Flag className="h-4 w-4 mr-1" />
-          Report
-        </Button>
-      </DialogTrigger>
+    <Dialog
+      open={open}
+      onOpenChange={(isOpen) => {
+        setOpen(isOpen)
+        if (!isOpen) {
+          // Reset state when dialog closes
+          setMessage(null)
+          setReason("")
+          setDetails("")
+        }
+      }}
+    >
+      <DialogTrigger asChild>{trigger || defaultTrigger}</DialogTrigger>
       <DialogContent className="sm:max-w-md bg-gray-900 border-gray-700">
         <DialogHeader>
-          <DialogTitle className="text-white">Report Post</DialogTitle>
+          <DialogTitle className="text-white">Report {targetType}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -91,7 +115,7 @@ export function ReportDialog({ postId, disabled = false }: ReportDialogProps) {
               </SelectContent>
             </Select>
           </div>
-          
+
           <div>
             <Label htmlFor="details" className="text-gray-300">
               Additional details (optional)
@@ -107,11 +131,13 @@ export function ReportDialog({ postId, disabled = false }: ReportDialogProps) {
           </div>
 
           {message && (
-            <div className={`text-sm p-2 rounded ${
-              message.type === 'success' 
-                ? 'bg-green-900/50 text-green-400 border border-green-700' 
-                : 'bg-red-900/50 text-red-400 border border-red-700'
-            }`}>
+            <div
+              className={`text-sm p-2 rounded ${
+                message.type === "success"
+                  ? "bg-green-900/50 text-green-400 border border-green-700"
+                  : "bg-red-900/50 text-red-400 border border-red-700"
+              }`}
+            >
               {message.text}
             </div>
           )}
@@ -125,12 +151,8 @@ export function ReportDialog({ postId, disabled = false }: ReportDialogProps) {
             >
               Cancel
             </Button>
-            <Button
-              type="submit"
-              disabled={isSubmitting || !reason}
-              className="bg-red-600 hover:bg-red-700 text-white"
-            >
-              {isSubmitting ? 'Submitting...' : 'Submit Report'}
+            <Button type="submit" disabled={isSubmitting || !reason} className="bg-red-600 hover:bg-red-700 text-white">
+              {isSubmitting ? "Submitting..." : "Submit Report"}
             </Button>
           </div>
         </form>

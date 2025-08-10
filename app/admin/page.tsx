@@ -10,7 +10,24 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { Users, MessageSquare, Globe, AlertTriangle, Shield, Settings, Search, Trash2, Ban, CheckCircle, XCircle, Eye, BarChart3, Flag, UserCheck, Plus } from 'lucide-react'
+import {
+  Users,
+  MessageSquare,
+  Globe,
+  AlertTriangle,
+  Shield,
+  Settings,
+  Search,
+  Trash2,
+  Ban,
+  CheckCircle,
+  XCircle,
+  Eye,
+  BarChart3,
+  Flag,
+  UserCheck,
+  Plus,
+} from "lucide-react"
 import {
   getAdminStats,
   getAllUsers,
@@ -79,8 +96,12 @@ interface Report {
   id: string
   reporter_username: string
   reported_user_username?: string
+  post_id?: string
   post_title?: string
+  comment_id?: string
+  comment_content?: string
   forum_name?: string
+  forum_subdomain?: string
   reason: string
   description?: string
   status: string
@@ -113,7 +134,7 @@ export default function AdminPage() {
       setAdminStats(statsData)
       setUsers(usersData)
       setForums(forumsData)
-      setReports(reportsData)
+      setReports(reportsData as Report[])
     } catch (error) {
       console.error("Failed to load admin data:", error)
     } finally {
@@ -521,7 +542,7 @@ export default function AdminPage() {
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
-                        
+
                         {/* Role Management Buttons */}
                         {user.role !== "admin" && (
                           <Button
@@ -534,7 +555,7 @@ export default function AdminPage() {
                             <Shield className="w-4 h-4" />
                           </Button>
                         )}
-                        
+
                         {user.role === "user" && (
                           <Button
                             variant="outline"
@@ -546,7 +567,7 @@ export default function AdminPage() {
                             <UserCheck className="w-4 h-4" />
                           </Button>
                         )}
-                        
+
                         {(user.role === "admin" || user.role === "moderator") && (
                           <Button
                             variant="outline"
@@ -720,11 +741,29 @@ export default function AdminPage() {
                             {report.status.toUpperCase()}
                           </Badge>
                           <Badge variant="outline" className="border-gray-500/50 text-gray-400">
-                            {report.post_title ? "POST" : report.reported_user_username ? "USER" : "FORUM"}
+                            {report.post_id ? "POST" : report.comment_id ? "COMMENT" : "UNKNOWN"}
                           </Badge>
                         </div>
                         <h4 className="text-lg font-semibold text-white mb-1">
-                          {report.post_title || report.reported_user_username || report.forum_name}
+                          {report.post_title ? (
+                            <Link
+                              href={`/forum/${report.forum_subdomain}/post/${report.post_id}`}
+                              className="hover:underline"
+                              target="_blank"
+                            >
+                              {report.post_title}
+                            </Link>
+                          ) : report.comment_content ? (
+                            <Link
+                              href={`/forum/${report.forum_subdomain}/post/${report.post_id}#comment-${report.comment_id}`}
+                              className="hover:underline"
+                              target="_blank"
+                            >
+                              Comment: "{report.comment_content.substring(0, 50)}..."
+                            </Link>
+                          ) : (
+                            report.reported_user_username || report.forum_name || "N/A"
+                          )}
                         </h4>
                         <p className="text-gray-400 text-sm mb-2">{report.description}</p>
                         <div className="flex items-center space-x-4 text-xs text-gray-500">

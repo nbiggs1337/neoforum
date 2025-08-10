@@ -10,6 +10,7 @@ import { MessageSquare, Reply, ArrowUp, ArrowDown, Flag, Heart, Clock } from "lu
 import { createComment } from "@/app/actions/comment"
 import { voteOnComment } from "@/app/actions/comment-vote"
 import Link from "next/link"
+import { ReportDialog } from "./report-dialog"
 
 interface Comment {
   id: string
@@ -273,6 +274,7 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
             }
             const netScore = voteData.upvotes - voteData.downvotes
             const isVoting = votingStates[comment.id] || false
+            const isLiked = voteData.userVote === "upvote"
 
             return (
               <div key={comment.id}>
@@ -357,21 +359,30 @@ export function CommentSection({ postId, comments = [], currentUser, userVotes =
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-gray-400 hover:text-red-400 hover:bg-red-500/10 text-xs"
-                          disabled={!currentUser}
+                          onClick={() => handleVote(comment.id, "upvote")}
+                          className={`text-xs transition-colors ${
+                            isLiked ? "text-red-400 hover:text-red-500" : "text-gray-400 hover:text-red-400"
+                          } hover:bg-red-500/10`}
+                          disabled={!currentUser || isVoting}
                         >
-                          <Heart className="w-3 h-3 mr-1" />
-                          Like
+                          <Heart className={`w-3 h-3 mr-1 ${isLiked ? "fill-current" : ""}`} />
+                          {isLiked ? "Liked" : "Like"}
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-gray-400 hover:text-orange-400 hover:bg-orange-500/10 text-xs"
+                        <ReportDialog
+                          commentId={comment.id}
                           disabled={!currentUser}
-                        >
-                          <Flag className="w-3 h-3 mr-1" />
-                          Report
-                        </Button>
+                          trigger={
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-gray-400 hover:text-orange-400 hover:bg-orange-500/10 text-xs"
+                              disabled={!currentUser}
+                            >
+                              <Flag className="w-3 h-3 mr-1" />
+                              Report
+                            </Button>
+                          }
+                        />
                       </div>
 
                       {/* Reply Form */}
